@@ -64,6 +64,21 @@ export interface TriageContext {
   };
   /** Extracted text of the builder's warranty agreement for this home. */
   warrantyDocumentText: string | null;
+  /**
+   * The same document, broken into clauses a coordinator has reviewed and
+   * tagged. Passed alongside the raw text rather than instead of it: the
+   * headings give a citation something exact to point at, and `citations[].
+   * reference` is what a coordinator reads back to a homeowner. An uncited
+   * proposal is forced to needsHumanReview, so this materially changes how
+   * often triage produces something usable.
+   */
+  coverageTerms: Array<{
+    heading: string;
+    body: string;
+    tier: string | null;
+    trade: string | null;
+    isCoverage: boolean;
+  }>;
   /** Prior claims on this same home, for duplicate detection. */
   priorClaims: Array<{
     id: string;
@@ -130,6 +145,27 @@ function buildUserPrompt(ctx: TriageContext): string {
     })
     .join("\n");
 
+  /*
+   * Exclusions are listed as plainly as grants. They are the clauses a
+   * coordinator quotes most, and a model that only sees what is covered will
+   * quietly under-weight what is not.
+   */
+  const clauseContext =
+    ctx.coverageTerms.length > 0
+      ? ctx.coverageTerms
+          .map((term) => {
+            const tags = [
+              term.isCoverage ? "GRANTS COVERAGE" : "EXCLUDES",
+              term.tier ? `tier: ${term.tier}` : null,
+              term.trade ? `trade: ${term.trade}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            return `- ${term.heading} (${tags})\n  ${term.body}`;
+          })
+          .join("\n")
+      : "No clauses have been tagged for this builder yet. Read the full text below, and set needsHumanReview since a citation cannot be checked against a reviewed clause.";
+
   const priorClaims =
     ctx.priorClaims.length > 0
       ? ctx.priorClaims
@@ -168,7 +204,13 @@ These decide whether a condition is a defect or is within acceptable tolerance. 
 
 ${tolerancesAsPromptContext()}
 
-## The builder's warranty agreement
+## The builder's warranty agreement, by clause
+
+Cite these by their exact heading. These have been reviewed by the builder, so prefer them over your own reading of the raw text below.
+
+${clauseContext}
+
+## The builder's warranty agreement, full text
 
 ${ctx.warrantyDocumentText ?? "No warranty document text is on file for this home. Rely on the tolerance table and standard 1-2-10 structure, note the absence in your summary, and set needsHumanReview."}
 

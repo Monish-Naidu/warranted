@@ -155,3 +155,12 @@ export function IconSettings({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+export function IconDocument({ size = 16, className }: IconProps) {
+  return (
+    <svg {...svgProps(size)} className={className}>
+      <path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8L14 3.5Z" />
+      <path d="M13.8 3.6V8.2h4.6M9 12.5h6M9 16h4" />
+    </svg>
+  );
+}

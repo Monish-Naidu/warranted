@@ -1,5 +1,7 @@
 import type {
   CreateCommunityInput,
+  CreateCoverageTermInput,
+  CreateWarrantyDocumentInput,
   CreateDeterminationInput,
   CreateHomeInput,
   CreatePlanInput,
@@ -240,6 +242,44 @@ export interface SubScorecardRow {
   backcharges: SubBackcharge[];
 }
 
+export interface WarrantyDocument {
+  id: string;
+  title: string;
+  effectiveDate: string | null;
+  extractedText: string | null;
+  homeId: string | null;
+}
+
+export interface WarrantyDocumentSummary {
+  id: string;
+  title: string;
+  effectiveDate: string | null;
+  homeId: string | null;
+  textLength: number;
+  terms: CoverageTerm[];
+}
+
+export interface CoverageTerm {
+  id: string;
+  documentId: string;
+  heading: string;
+  body: string;
+  tier: string | null;
+  trade: string | null;
+  isCoverage: boolean;
+  pageNumber: number | null;
+}
+
+/** A proposal, not a saved clause. Nothing persists until a human saves it. */
+export interface SuggestedClause {
+  heading: string;
+  body: string;
+  tier: string | null;
+  trade: string | null;
+  isCoverage: boolean;
+  pageNumber: number | null;
+}
+
 export interface CommunityRow {
   id: string;
   name: string;
@@ -372,6 +412,66 @@ export const api = {
       `/homes/${homeId}/milestones/${kind}/schedule`,
       { method: "POST", body: JSON.stringify({ scheduledFor }) },
     ),
+
+  // ------------------------------------------------------ warranty document
+
+  warrantyDocuments: () =>
+    request<{ documents: WarrantyDocumentSummary[] }>("/admin/warranty-documents"),
+
+  warrantyDocument: (id: string) =>
+    request<{ document: WarrantyDocument; terms: CoverageTerm[] }>(
+      `/admin/warranty-documents/${id}`,
+    ),
+
+  createWarrantyDocument: (input: CreateWarrantyDocumentInput) =>
+    request<{ document: WarrantyDocument }>("/admin/warranty-documents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /**
+   * Send a file up and get its text back. Nothing is stored by this call: the
+   * text lands in the form for review, and only saving the document persists
+   * it.
+   */
+  extractDocumentFile: async (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    const token = getToken();
+    const response = await fetch("/api/admin/warranty-documents/extract-file", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new ApiError(
+        payload?.error?.message ?? "Could not read that file.",
+        response.status,
+        payload?.error?.code ?? "unknown",
+      );
+    }
+    return response.json() as Promise<{
+      text: string;
+      pages: number | null;
+      filename: string;
+    }>;
+  },
+
+  suggestClauses: (documentId: string) =>
+    request<{ terms: SuggestedClause[]; model: string; latencyMs: number }>(
+      `/admin/warranty-documents/${documentId}/suggest-terms`,
+      { method: "POST" },
+    ),
+
+  saveClauses: (documentId: string, terms: CreateCoverageTermInput[]) =>
+    request<{ terms: CoverageTerm[] }>(
+      `/admin/warranty-documents/${documentId}/terms`,
+      { method: "POST", body: JSON.stringify({ terms }) },
+    ),
+
+  deleteClause: (id: string) =>
+    request<{ ok: boolean }>(`/admin/coverage-terms/${id}`, { method: "DELETE" }),
 
   // ------------------------------------------------------------------ setup
 

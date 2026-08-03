@@ -161,6 +161,59 @@ export type AiAssessment = z.infer<typeof aiAssessmentSchema>;
 // homes, warranties, subs
 // ---------------------------------------------------------------------------
 
+/**
+ * The builder's limited warranty.
+ *
+ * `extractedText` is the load-bearing field: it is what triage reads as
+ * grounding context, and a determination that cannot quote the document is a
+ * determination that starts an argument rather than ending one.
+ */
+export const createWarrantyDocumentSchema = z.object({
+  title: z.string().min(1).max(200),
+  effectiveDate: isoDateSchema.nullable().default(null),
+  extractedText: z.string().min(1, "The document text is what triage reads."),
+  /** Set when a lot is covered by something other than the standard program. */
+  homeId: z.string().uuid().nullable().default(null),
+});
+export type CreateWarrantyDocumentInput = z.infer<
+  typeof createWarrantyDocumentSchema
+>;
+
+/**
+ * One clause, tagged.
+ *
+ * `isCoverage` false is an exclusion, and the distinction matters more than it
+ * looks: the clauses that deny are the ones a coordinator needs to quote most
+ * often. `heading` is what a citation points at, so it should read the way the
+ * document numbers itself ("§3.0(b) Homeowner maintenance").
+ */
+export const createCoverageTermSchema = z.object({
+  heading: z.string().min(1).max(200),
+  body: z.string().min(1),
+  tier: warrantyTierSchema.nullable().default(null),
+  trade: tradeSchema.nullable().default(null),
+  isCoverage: z.boolean().default(true),
+  pageNumber: z.number().int().min(1).max(2000).nullable().default(null),
+});
+export type CreateCoverageTermInput = z.infer<typeof createCoverageTermSchema>;
+
+/** What the model proposes when asked to break a document into clauses. */
+export const suggestedTermsSchema = z.object({
+  terms: z
+    .array(
+      z.object({
+        heading: z.string().max(200),
+        body: z.string().max(4000),
+        tier: warrantyTierSchema.nullable(),
+        trade: tradeSchema.nullable(),
+        isCoverage: z.boolean(),
+        pageNumber: z.number().int().nullable(),
+      }),
+    )
+    .max(80),
+});
+export type SuggestedTerms = z.infer<typeof suggestedTermsSchema>;
+
 export const createCommunitySchema = z.object({
   name: z.string().min(1).max(200),
   city: z.string().min(1).max(120),

@@ -2564,3 +2564,58 @@ kbd {
   border-color: var(--critical-border);
   background: var(--critical-bg);
 }
+
+/* ==================================================== warranty document */
+
+.clause-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.clause {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+}
+
+/* Exclusions carry the marker because they are the clauses a coordinator
+   quotes most, and the ones a homeowner argues with. */
+.clause.is-exclusion {
+  border-left: 3px solid var(--critical);
+}
+
+.clause.is-draft {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+
+.clause-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.clause-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  line-height: var(--leading-snug);
+}
+
+.proposal-review {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--info-border);
+  background: var(--info-bg);
+  border-radius: var(--radius-md);
+}
+
+input[type="file"] {
+  padding: var(--space-2);
+  background: var(--surface-inset);
+  cursor: pointer;
+}

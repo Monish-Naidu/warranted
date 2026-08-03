@@ -34,6 +34,7 @@ import {
   plans,
   subAssignments,
   subcontractors,
+  coverageTerms,
   warrantyDocuments,
 } from "../db/schema.js";
 import { env } from "../env.js";
@@ -322,6 +323,15 @@ claimRoutes.post("/:claimId/triage", requireBuilderStaff, async (c) => {
       .limit(1),
   ]);
 
+  // The clauses a coordinator reviewed and tagged. Loaded after the document
+  // because it is what identifies them.
+  const reviewedTerms = doc[0]
+    ? await db
+        .select()
+        .from(coverageTerms)
+        .where(eq(coverageTerms.documentId, doc[0].id))
+    : [];
+
   try {
     const result = await triageClaim({
       claim: {
@@ -340,6 +350,13 @@ claimRoutes.post("/:claimId/triage", requireBuilderStaff, async (c) => {
         warrantyStartDate: row.home.warrantyStartDate as IsoDate,
       },
       warrantyDocumentText: doc[0]?.extractedText ?? null,
+      coverageTerms: reviewedTerms.map((term) => ({
+        heading: term.heading,
+        body: term.body,
+        tier: term.tier,
+        trade: term.trade,
+        isCoverage: term.isCoverage,
+      })),
       priorClaims: priorClaims.map((p) => ({
         id: p.id,
         reference: p.reference,

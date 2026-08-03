@@ -14,6 +14,7 @@ import {
   IconAlert,
   IconCalendar,
   IconClipboard,
+  IconDocument,
   IconGauge,
   IconGrid,
   IconSearch,
@@ -31,6 +32,7 @@ import { LoginPage } from "./pages/Login";
 import { PatternsPage } from "./pages/Patterns";
 import { SchedulePage } from "./pages/Schedule";
 import { SetupPage } from "./pages/Setup";
+import { WarrantyDocPage } from "./pages/WarrantyDoc";
 import { ScorecardPage } from "./pages/Scorecard";
 
 export function App() {
@@ -72,7 +74,10 @@ const NAV = [
 ];
 
 /** Setup is deliberately below the daily work, not above it. */
-const SECONDARY_NAV = [{ to: "/setup", label: "Setup", Icon: IconSettings }];
+const SECONDARY_NAV = [
+  { to: "/warranty", label: "Warranty document", Icon: IconDocument },
+  { to: "/setup", label: "Setup", Icon: IconSettings },
+];
 
 function Shell({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
@@ -183,6 +188,7 @@ function Shell({ user }: { user: SessionUser }) {
             <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/setup" element={<SetupPage />} />
+            <Route path="/warranty" element={<WarrantyDocPage />} />
             <Route path="/subcontractors" element={<ScorecardPage />} />
             <Route path="/patterns" element={<PatternsPage />} />
             <Route path="*" element={<Navigate to="/exposure" replace />} />
