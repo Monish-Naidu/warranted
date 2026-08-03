@@ -149,11 +149,15 @@ prior owners keep read access to claims they filed — that matters after a resa
 - **No tests outside `packages/warranty`.** Nothing covers auth, tenant
   isolation, the geo-verification math, or the exposure endpoint's assembly.
   This is the highest-value thing to add.
-- **No admin write paths** for homes, communities, plans, or subcontractors —
-  a real builder can't be onboarded without the seed script.
-- **`appointments` / `appointment_claims` are unreferenced by any route.**
-  Scheduling is a schema and nothing else, despite being the actual operational
-  bottleneck for builders.
+- **No warranty document upload.** `warranty_documents` and `coverage_terms`
+  still come from the seed script, and they are what every coverage citation is
+  drawn from. Communities, plans, subcontractors, homes, and assignments now
+  have write paths under `/api/admin` and a `/setup` UI.
+- **No bulk import or ERP integration.** A builder doing 200 homes a year across
+  20-25 trades is 4,000+ assignment records annually. The forms are the
+  exception path; nobody types that volume. See `docs/OPERATIONS.md`.
+- **Nothing reaches out.** No digest, no reminder, no notification. The product
+  depends on someone opening it on a day when nothing has gone wrong yet.
 - **Right-to-cure columns are unwritten.** `statutory_notice_sent_at`,
   `statutory_response_due_at`, and `responded_at` exist on `claims` and nothing
   sets them. This is a compliance feature with real legal weight — see the

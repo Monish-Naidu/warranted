@@ -147,13 +147,16 @@ onboarding a real builder without the seed script.
 
 ### Other gaps in what exists
 
-- **No UI for recording completion dates.** The API accepts them; neither the
-  portal nor the app exposes a form. Until it does, closing an undocumented-trade
-  alert still means a manual API call.
+- ~~No UI for recording completion dates~~ — fixed. `/gaps` lists every trade
+  missing one, worst window first, with the field to fix it on the row, and
+  `/setup` captures the date at assignment time.
 - **No tests outside the rules engine.** `apps/api` declares a `test` script and
   has vitest installed; there are no test files. Nothing covers auth, tenant
   isolation, the geo-verification math, or the exposure endpoint's assembly.
-- **`appointments` and `appointment_claims` are unreferenced** by any route.
+- ~~`appointments` and `appointment_claims` are unreferenced~~ — fixed.
+  `/api/appointments` books, reschedules, confirms, completes, and cancels
+  visits, batching several claims on a home into one trip. `/schedule` is the
+  board.
 - **Right-to-cure columns are unwritten.** `statutory_notice_sent_at`,
   `statutory_response_due_at`, and `responded_at` exist on `claims` and nothing
   sets them.

@@ -186,6 +186,16 @@ This is the highest-value data entry in the product. It is also the one that
 walks out the door when the coordinator leaves, which is the whole reason the
 ledger exists outside their head.
 
+### Through the day: scheduling
+
+**Schedule** groups claims waiting for a visit by home, because the batching
+decision is per home. Seeing "Lot 42, three claims" is what prompts one trip
+instead of three.
+
+A booked visit is not a confirmed one. Until the homeowner confirms from their
+app, it shows as awaiting confirmation, because an unconfirmed slot is a truck
+roll waiting to be wasted.
+
 ### Through the day: claims
 
 A homeowner photographs a problem from their phone. The photo's capture time and
@@ -281,6 +291,11 @@ Honest, as of this document.
 | Capability | Route |
 | --- | --- |
 | Sign in | `POST /api/auth/login`, `GET /api/auth/me` |
+| Create communities, plans, subcontractors | `POST /api/admin/communities`, `/plans`, `/subcontractors` |
+| Create a home, with its warranties and milestones | `POST /api/admin/homes` |
+| Book a visit, batching several claims | `POST /api/appointments` |
+| Reschedule, confirm, complete, cancel a visit | `PATCH` / `DELETE /api/appointments/:id` |
+| Move a backcharge through its lifecycle | `PATCH /api/builder/backcharges/:id` |
 | Exposure board and alerts | `GET /api/builder/exposure` |
 | Record a subcontractor assignment | `POST /api/builder/homes/:homeId/assignments` |
 | Backfill a completion date | `PATCH /api/builder/assignments/:assignmentId` |
@@ -294,21 +309,19 @@ Honest, as of this document.
 
 ### Not built
 
-- **No write path for homes, communities, plans, subcontractors, or warranty
-  documents.** Phase 1 and Phase 2.1 above cannot be done through the product
-  today. They come from the seed script. This is the gap that blocks onboarding
-  a real builder.
+- **No warranty document upload.** Phase 1.2, the most important setup step,
+  still comes from the seed script. Everything else in Phase 1 and 2 can now be
+  done through **Setup**.
 - **No bulk import and no ERP integration.** Given the volume in Phase 2.2, this
-  is what makes the difference between a demo and a deployment.
-- **No backcharge status transitions.** The scorecard surfaces what to bill, but
-  marking one issued or collected happens outside the system.
-- **`appointments` and `appointment_claims` are schema only.** Scheduling is
-  named in `docs/DOMAIN.md` as the real operational bottleneck, and nothing in
-  the product touches it yet.
+  is the difference between a demo and a deployment. The forms are the exception
+  path, not the primary one.
 - **Right-to-cure columns are unwritten.** `statutory_notice_sent_at` and its
   siblings exist on `claims` and nothing sets them. This is a compliance feature
   with legal weight.
 - **Photos are on local disk**, which does not work on the current deployment.
   Claim photos are evidence and belong in object storage with signed URLs.
+- **Nothing reaches out.** No digest, no reminder, no notification. The product
+  depends entirely on the coordinator choosing to open it, on a day when nothing
+  has gone wrong yet. An 11-month alert seen in month twelve is worth nothing.
 
 `docs/ROADMAP.md` is the maintained list.
