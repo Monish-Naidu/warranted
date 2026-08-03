@@ -13,6 +13,22 @@ import * as schema from "./schema.js";
 export const pool = new pg.Pool({
   connectionString: env.DATABASE_URL,
   max: env.DB_POOL_MAX,
+  /*
+   * pg defaults to waiting forever for a connection. On a serverless platform
+   * that turns any network problem into an opaque function timeout with
+   * nothing in the log — the failure looks identical to a slow query, and
+   * there's no error to read. Ten seconds is far above a healthy connect
+   * (single-digit ms same-region, tens cross-region) and far below the
+   * function's own limit, so a real failure surfaces as a real error.
+   */
+  connectionTimeoutMillis: 10_000,
+});
+
+// A pool error with no listener is an unhandled 'error' event, which takes the
+// whole process down. Serverless recycles instances constantly, so idle
+// backends get closed underneath us as a matter of course.
+pool.on("error", (error) => {
+  console.error("Postgres pool error:", error);
 });
 
 export const db = drizzle(pool, { schema });
