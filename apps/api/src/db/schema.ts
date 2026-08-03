@@ -290,6 +290,53 @@ export const coverageTerms = pgTable(
   (t) => [index("coverage_terms_document_idx").on(t.documentId)],
 );
 
+/**
+ * The builder's performance standard: the table that decides whether an
+ * observed condition is a defect or is within acceptable tolerance.
+ *
+ * This exists as a table rather than staying in code for a licensing reason as
+ * much as a product one. `packages/warranty/src/tolerances.ts` ships
+ * widely-cited approximations as a structural placeholder, because the NAHB
+ * *Residential Construction Performance Guidelines* are copyrighted. A builder
+ * running this commercially has to supply their own published standard, an
+ * applicable state standard, or a licensed copy. Rows here override the
+ * built-in set for that builder; with no rows, the placeholder is used and the
+ * portal says so.
+ *
+ * `code` is the stable key an AI citation points at, so it is unique per
+ * builder and should read like the built-ins ("drywall.crack").
+ */
+export const performanceTolerances = pgTable(
+  "performance_tolerances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    builderId: uuid("builder_id")
+      .notNull()
+      .references(() => builders.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 120 }).notNull(),
+    trade: tradeEnum("trade").notNull(),
+    /** Plain-language condition a homeowner would describe. */
+    condition: text("condition").notNull(),
+    /** The threshold at which it becomes actionable. */
+    threshold: text("threshold").notNull(),
+    /** Machine-comparable form, null when the condition needs human judgment. */
+    measurementUnit: varchar("measurement_unit", { length: 16 }),
+    measurementMax: doublePrecision("measurement_max"),
+    measurementOver: varchar("measurement_over", { length: 60 }),
+    typicalWindowMonths: integer("typical_window_months").notNull().default(12),
+    /** Life-safety and water intrusion: no acceptable amount, at any size. */
+    isZeroTolerance: boolean("is_zero_tolerance").notNull().default(false),
+    notes: text("notes"),
+    /** Where this value came from, which matters when it is challenged. */
+    source: varchar("source", { length: 200 }),
+    ...timestamps,
+  },
+  (t) => [
+    index("performance_tolerances_builder_idx").on(t.builderId, t.trade),
+    uniqueIndex("performance_tolerances_code_unique").on(t.builderId, t.code),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // subcontractors — the second clock
 // ---------------------------------------------------------------------------

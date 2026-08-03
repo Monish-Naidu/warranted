@@ -35,6 +35,7 @@ import {
   subAssignments,
   subcontractors,
   coverageTerms,
+  performanceTolerances,
   warrantyDocuments,
 } from "../db/schema.js";
 import { env } from "../env.js";
@@ -323,6 +324,34 @@ claimRoutes.post("/:claimId/triage", requireBuilderStaff, async (c) => {
       .limit(1),
   ]);
 
+  /*
+   * The builder's own performance standard, if they have published one here.
+   * An empty result is not an error: the rules engine falls back to its
+   * built-in placeholder table, and the portal is explicit about which is in
+   * use.
+   */
+  const builderTolerances = await db
+    .select()
+    .from(performanceTolerances)
+    .where(eq(performanceTolerances.builderId, builderId));
+
+  const toleranceTable = builderTolerances.map((row) => ({
+    id: row.code,
+    trade: row.trade,
+    condition: row.condition,
+    threshold: row.threshold,
+    measurement:
+      row.measurementUnit && row.measurementMax !== null
+        ? {
+            unit: row.measurementUnit as "inch" | "degree" | "count" | "percent",
+            maxAcceptable: row.measurementMax,
+            ...(row.measurementOver ? { over: row.measurementOver } : {}),
+          }
+        : null,
+    typicalWindowMonths: row.typicalWindowMonths,
+    notes: row.notes ?? "",
+  }));
+
   // The clauses a coordinator reviewed and tagged. Loaded after the document
   // because it is what identifies them.
   const reviewedTerms = doc[0]
@@ -350,6 +379,14 @@ claimRoutes.post("/:claimId/triage", requireBuilderStaff, async (c) => {
         warrantyStartDate: row.home.warrantyStartDate as IsoDate,
       },
       warrantyDocumentText: doc[0]?.extractedText ?? null,
+      ...(toleranceTable.length > 0
+        ? {
+            tolerances: toleranceTable,
+            zeroToleranceIds: builderTolerances
+              .filter((r) => r.isZeroTolerance)
+              .map((r) => r.code),
+          }
+        : {}),
       coverageTerms: reviewedTerms.map((term) => ({
         heading: term.heading,
         body: term.body,

@@ -11,6 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TRADES, WARRANTY_START_SOURCES } from "@warranted/shared";
 import { useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 
 const START_SOURCE_LABELS: Record<string, string> = {
@@ -31,6 +32,8 @@ export function SetupPage() {
           the one above it.
         </p>
       </div>
+
+      <Readiness />
 
       <div className="stack" style={{ gap: "var(--space-4)" }}>
         <Step n={1} title="Communities" hint="Where you build.">
@@ -70,6 +73,79 @@ export function SetupPage() {
         </Step>
       </div>
     </>
+  );
+}
+
+/**
+ * What is configured and what is not.
+ *
+ * The gap this closes: a builder who has just signed up opens the exposure
+ * board, sees nothing, and cannot tell whether the product is broken or simply
+ * empty. Blocking gaps are marked as such, because "no communities" stops
+ * everything downstream while "no warranty document" only makes every
+ * determination uncitable, which needs saying differently.
+ */
+function Readiness() {
+  const { data } = useQuery({ queryKey: ["readiness"], queryFn: api.readiness });
+  if (!data) return null;
+
+  const pct = Math.round((data.complete / data.total) * 100);
+  const allDone = data.complete === data.total;
+
+  return (
+    <section className="card card-pad-lg readiness">
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <div>
+          <div className="cell-strong">
+            {allDone
+              ? "Everything is configured"
+              : `${data.complete} of ${data.total} configured`}
+          </div>
+          <div className="muted" style={{ fontSize: "var(--text-sm)" }}>
+            {data.blockedOn.length > 0
+              ? "The red items stop everything downstream from working."
+              : allDone
+                ? "Nothing is missing."
+                : "Nothing is blocked. The remaining items affect quality, not function."}
+          </div>
+        </div>
+        <span className={`badge ${allDone ? "ok" : data.blockedOn.length > 0 ? "critical" : "warning"}`}>
+          {pct}%
+        </span>
+      </div>
+
+      <div className="readiness-bar">
+        <div className="readiness-fill" style={{ width: `${pct}%` }} />
+      </div>
+
+      <div className="readiness-steps">
+        {data.steps.map((step) => {
+          const blocking = step.blocking && !step.done;
+          return (
+            <Link
+              key={step.key}
+              to={step.href}
+              className={`readiness-step ${step.done ? "is-done" : ""} ${
+                blocking ? "is-blocking" : ""
+              }`}
+            >
+              <span className="readiness-check" aria-hidden>
+                {step.done ? "✓" : blocking ? "!" : ""}
+              </span>
+              <span>
+                <span className="readiness-label">
+                  {step.label}
+                  {step.count > 0 && (
+                    <span className="badge mono">{step.count}</span>
+                  )}
+                </span>
+                {!step.done && <span className="readiness-why">{step.why}</span>}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -150,7 +226,7 @@ function Feedback({
 
 function CommunityForm() {
   const [form, setForm] = useState({ name: "", city: "", state: "", postalCode: "" });
-  const { mutation, saved } = useCreate(api.createCommunity, [["communities"]], () =>
+  const { mutation, saved } = useCreate(api.createCommunity, [["communities"], ["readiness"]], () =>
     setForm({ name: "", city: "", state: "", postalCode: "" }),
   );
 
@@ -210,7 +286,7 @@ function CommunityForm() {
 
 function PlanForm() {
   const [form, setForm] = useState({ name: "", elevation: "", squareFeet: "" });
-  const { mutation, saved } = useCreate(api.createPlan, [["plans"]], () =>
+  const { mutation, saved } = useCreate(api.createPlan, [["plans"], ["readiness"]], () =>
     setForm({ name: "", elevation: "", squareFeet: "" }),
   );
 
@@ -276,7 +352,7 @@ function SubcontractorForm() {
   const [form, setForm] = useState(empty);
   const { mutation, saved } = useCreate(
     api.createSubcontractor,
-    [["scorecard"], ["subcontractorList"]],
+    [["scorecard"], ["subcontractorList"], ["readiness"]],
     () => setForm(empty),
   );
 
@@ -389,7 +465,7 @@ function HomeForm() {
   const [form, setForm] = useState(empty);
   const { mutation, saved } = useCreate(
     api.createHome,
-    [["exposure"], ["homes"]],
+    [["exposure"], ["homes"], ["readiness"]],
     () => setForm(empty),
   );
 
@@ -623,6 +699,7 @@ function AssignmentForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["exposure"] });
       queryClient.invalidateQueries({ queryKey: ["scorecard"] });
+      queryClient.invalidateQueries({ queryKey: ["readiness"] });
       setForm(empty);
       setSaved("Saved");
       setTimeout(() => setSaved(null), 2500);

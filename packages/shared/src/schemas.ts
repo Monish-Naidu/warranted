@@ -214,6 +214,33 @@ export const suggestedTermsSchema = z.object({
 });
 export type SuggestedTerms = z.infer<typeof suggestedTermsSchema>;
 
+/**
+ * One row of the builder's performance standard.
+ *
+ * `code` is what an AI citation points at, so it must be stable once claims
+ * reference it. `source` is not decoration: when a homeowner challenges a
+ * threshold, where the number came from is the answer.
+ */
+export const createToleranceSchema = z.object({
+  code: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9_.-]+$/, "Lowercase letters, numbers, dots, dashes."),
+  trade: tradeSchema,
+  condition: z.string().min(1).max(400),
+  threshold: z.string().min(1).max(300),
+  measurementUnit: z.enum(["inch", "degree", "count", "percent"]).nullable().default(null),
+  measurementMax: z.number().nonnegative().nullable().default(null),
+  measurementOver: z.string().max(60).nullable().default(null),
+  typicalWindowMonths: z.number().int().min(0).max(240).default(12),
+  /** Life-safety and water intrusion: no acceptable amount, at any size. */
+  isZeroTolerance: z.boolean().default(false),
+  notes: z.string().max(1000).nullable().default(null),
+  source: z.string().max(200).nullable().default(null),
+});
+export type CreateToleranceInput = z.infer<typeof createToleranceSchema>;
+
 export const createCommunitySchema = z.object({
   name: z.string().min(1).max(200),
   city: z.string().min(1).max(120),

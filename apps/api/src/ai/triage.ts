@@ -23,6 +23,7 @@ import {
   checkCoverage,
   tolerancesAsPromptContext,
   type IsoDate,
+  type Tolerance,
 } from "@warranted/warranty";
 import { readFile } from "node:fs/promises";
 import { env } from "../env.js";
@@ -79,6 +80,14 @@ export interface TriageContext {
     trade: string | null;
     isCoverage: boolean;
   }>;
+  /**
+   * The builder's own performance standard, when they have supplied one.
+   * Undefined falls back to the built-in placeholder set, which is a
+   * development convenience and not something to rely on commercially — see
+   * the licensing note in `packages/warranty/src/tolerances.ts`.
+   */
+  tolerances?: readonly Tolerance[];
+  zeroToleranceIds?: readonly string[];
   /** Prior claims on this same home, for duplicate detection. */
   priorClaims: Array<{
     id: string;
@@ -202,7 +211,7 @@ ${coverageByTrade}
 
 These decide whether a condition is a defect or is within acceptable tolerance. Cite by id.
 
-${tolerancesAsPromptContext()}
+${tolerancesAsPromptContext(ctx.tolerances, ctx.zeroToleranceIds)}
 
 ## The builder's warranty agreement, by clause
 

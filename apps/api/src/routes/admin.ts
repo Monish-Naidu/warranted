@@ -25,12 +25,21 @@ import {
   createHomeSchema,
   createPlanSchema,
   createSubcontractorSchema,
+  createToleranceSchema,
   createWarrantyDocumentSchema,
   DEFAULT_TIER_MONTHS,
   WARRANTY_TIERS,
 } from "@warranted/shared";
-import { addMonths, milestoneSchedule, today, type IsoDate } from "@warranted/warranty";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import {
+  addMonths,
+  milestoneSchedule,
+  today,
+  TOLERANCES,
+  ZERO_TOLERANCE_IDS,
+  type IsoDate,
+  type Tolerance,
+} from "@warranted/warranty";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { Hono } from "hono";
 import { db } from "../db/index.js";
@@ -39,7 +48,9 @@ import {
   coverageTerms,
   homes,
   milestones,
+  performanceTolerances,
   plans,
+  subAssignments,
   subcontractors,
   warranties,
   warrantyDocuments,
@@ -50,6 +61,8 @@ import {
 } from "../ai/clauses.js";
 import { builderIdOf, requireAuth, requireBuilderStaff, type AppEnv } from "../middleware/auth.js";
 
+const COUNT = sql<number>`count(*)::int`;
+
 const NOT_FOUND = (what: string) => ({
   error: { code: "not_found", message: `No such ${what}.` },
 });
@@ -59,6 +72,151 @@ export const adminRoutes = new Hono<AppEnv>();
 // Order matters: requireBuilderStaff reads the user that requireAuth puts on
 // the context, so authenticating first is not optional.
 adminRoutes.use("*", requireAuth, requireBuilderStaff);
+
+/**
+ * What is configured, and what is still missing.
+ *
+ * A builder signing in for the first time sees empty screens with no
+ * indication of why, or which of them is a problem. This is the difference
+ * between "the exposure board is broken" and "the exposure board has nothing
+ * to show yet because no homes exist."
+ *
+ * Ordered by dependency, since that is the order the work has to happen in,
+ * and each step carries whether it actually blocks anything. Communities
+ * genuinely block homes. A warranty document does not block anything, but
+ * without it every determination is uncitable, which is worse than blocked.
+ */
+adminRoutes.get("/readiness", async (c) => {
+  const builderId = builderIdOf(c);
+
+  const [
+    communityRows,
+    planRows,
+    subRows,
+    homeRows,
+    assignmentRows,
+    docRows,
+    termRows,
+    toleranceRows,
+  ] = await Promise.all([
+    db.select({ n: COUNT }).from(communities).where(eq(communities.builderId, builderId)),
+    db.select({ n: COUNT }).from(plans).where(eq(plans.builderId, builderId)),
+    db
+      .select({ n: COUNT })
+      .from(subcontractors)
+      .where(eq(subcontractors.builderId, builderId)),
+    db.select({ n: COUNT }).from(homes).where(eq(homes.builderId, builderId)),
+    db
+      .select({ n: COUNT })
+      .from(subAssignments)
+      .innerJoin(homes, eq(subAssignments.homeId, homes.id))
+      .where(eq(homes.builderId, builderId)),
+    db
+      .select({ n: COUNT })
+      .from(warrantyDocuments)
+      .where(eq(warrantyDocuments.builderId, builderId)),
+    db
+      .select({ n: COUNT })
+      .from(coverageTerms)
+      .innerJoin(
+        warrantyDocuments,
+        eq(coverageTerms.documentId, warrantyDocuments.id),
+      )
+      .where(eq(warrantyDocuments.builderId, builderId)),
+    db
+      .select({ n: COUNT })
+      .from(performanceTolerances)
+      .where(eq(performanceTolerances.builderId, builderId)),
+  ]);
+
+  const n = (rows: Array<{ n: number }>) => rows[0]?.n ?? 0;
+
+  const steps = [
+    {
+      key: "warranty_document",
+      label: "Warranty document",
+      href: "/warranty",
+      count: n(docRows),
+      done: n(docRows) > 0,
+      blocking: false,
+      why: "Every coverage decision cites it. Without one, triage cannot quote you.",
+    },
+    {
+      key: "clauses",
+      label: "Tagged clauses",
+      href: "/warranty",
+      count: n(termRows),
+      done: n(termRows) > 0,
+      blocking: false,
+      why: "A citation needs a heading to point at. Untagged, triage flags everything for review.",
+    },
+    {
+      key: "tolerances",
+      label: "Performance standard",
+      href: "/tolerances",
+      count: n(toleranceRows),
+      // Not "done" in the blocking sense: the built-in placeholder answers, so
+      // nothing breaks. It is flagged because relying on it commercially is a
+      // licensing problem, not a functional one.
+      done: n(toleranceRows) > 0,
+      blocking: false,
+      why: "Without your own, a copyrighted placeholder stands in. Fine to develop against, wrong to rely on.",
+    },
+    {
+      key: "communities",
+      label: "Communities",
+      href: "/setup",
+      count: n(communityRows),
+      done: n(communityRows) > 0,
+      blocking: true,
+      why: "A home has to belong to one.",
+    },
+    {
+      key: "plans",
+      label: "Plans",
+      href: "/setup",
+      count: n(planRows),
+      done: n(planRows) > 0,
+      blocking: false,
+      why: "Repeating defects are found by plan. Without plans there are no patterns.",
+    },
+    {
+      key: "subcontractors",
+      label: "Subcontractors",
+      href: "/setup",
+      count: n(subRows),
+      done: n(subRows) > 0,
+      blocking: true,
+      why: "The second clock belongs to them. No subs, no exposure calculation.",
+    },
+    {
+      key: "homes",
+      label: "Homes",
+      href: "/setup",
+      count: n(homeRows),
+      done: n(homeRows) > 0,
+      blocking: true,
+      why: "Nothing has a warranty clock until a home exists.",
+    },
+    {
+      key: "assignments",
+      label: "Trade assignments",
+      href: "/setup",
+      count: n(assignmentRows),
+      done: n(assignmentRows) > 0,
+      blocking: true,
+      why: "Who did what, and when they finished. This is what the whole exposure board runs on.",
+    },
+  ];
+
+  return c.json({
+    steps,
+    complete: steps.filter((s) => s.done).length,
+    total: steps.length,
+    blockedOn: steps.filter((s) => s.blocking && !s.done).map((s) => s.key),
+  });
+});
+
 
 // ---------------------------------------------------------------------------
 // warranty documents and their clauses
@@ -360,6 +518,137 @@ adminRoutes.delete("/coverage-terms/:id", async (c) => {
   await db.delete(coverageTerms).where(eq(coverageTerms.id, c.req.param("id")));
   return c.json({ ok: true });
 });
+
+// ---------------------------------------------------------------------------
+// performance tolerances
+// ---------------------------------------------------------------------------
+
+/**
+ * The builder's performance standard, and whether they have one at all.
+ *
+ * `usingBuiltIn` is the important field. With no rows the rules engine falls
+ * back to the placeholder table in `packages/warranty`, which is a set of
+ * widely-cited approximations standing in for the copyrighted NAHB guidelines.
+ * That is fine for development and wrong to rely on commercially, so the
+ * portal has to be able to say which one is in force rather than quietly
+ * presenting the placeholder as the builder's own standard.
+ */
+adminRoutes.get("/tolerances", async (c) => {
+  const rows = await db
+    .select()
+    .from(performanceTolerances)
+    .where(eq(performanceTolerances.builderId, builderIdOf(c)))
+    .orderBy(asc(performanceTolerances.trade), asc(performanceTolerances.code));
+
+  return c.json({
+    tolerances: rows,
+    usingBuiltIn: rows.length === 0,
+    builtInCount: TOLERANCES.length,
+    builtIn: rows.length === 0 ? asRows(TOLERANCES) : [],
+  });
+});
+
+/**
+ * Copy the built-in set in as a starting point.
+ *
+ * Explicitly a copy, not an adoption: once these are rows the builder owns
+ * them, can edit them, and can see where each value came from. `source`
+ * records that they began as the placeholder so nobody later mistakes them for
+ * a licensed standard.
+ */
+adminRoutes.post("/tolerances/import-built-in", async (c) => {
+  const builderId = builderIdOf(c);
+
+  const existing = await db
+    .select({ code: performanceTolerances.code })
+    .from(performanceTolerances)
+    .where(eq(performanceTolerances.builderId, builderId));
+  const have = new Set(existing.map((e) => e.code));
+
+  const toInsert = asRows(TOLERANCES)
+    .filter((t) => !have.has(t.code))
+    .map((t) => ({ ...t, builderId }));
+
+  if (toInsert.length === 0) {
+    return c.json({ imported: 0, tolerances: [] });
+  }
+
+  const inserted = await db
+    .insert(performanceTolerances)
+    .values(toInsert)
+    .returning();
+
+  return c.json({ imported: inserted.length, tolerances: inserted }, 201);
+});
+
+adminRoutes.post(
+  "/tolerances",
+  zValidator("json", createToleranceSchema),
+  async (c) => {
+    const [tolerance] = await db
+      .insert(performanceTolerances)
+      .values({ ...c.req.valid("json"), builderId: builderIdOf(c) })
+      .returning();
+    return c.json({ tolerance }, 201);
+  },
+);
+
+adminRoutes.patch(
+  "/tolerances/:id",
+  zValidator("json", createToleranceSchema.partial()),
+  async (c) => {
+    const [tolerance] = await db
+      .update(performanceTolerances)
+      .set({ ...c.req.valid("json"), updatedAt: new Date() })
+      .where(
+        and(
+          eq(performanceTolerances.id, c.req.param("id")),
+          eq(performanceTolerances.builderId, builderIdOf(c)),
+        ),
+      )
+      .returning();
+
+    if (!tolerance) return c.json(NOT_FOUND("tolerance"), 404);
+    return c.json({ tolerance });
+  },
+);
+
+adminRoutes.delete("/tolerances/:id", async (c) => {
+  const [existing] = await db
+    .select({ id: performanceTolerances.id })
+    .from(performanceTolerances)
+    .where(
+      and(
+        eq(performanceTolerances.id, c.req.param("id")),
+        eq(performanceTolerances.builderId, builderIdOf(c)),
+      ),
+    )
+    .limit(1);
+
+  if (!existing) return c.json(NOT_FOUND("tolerance"), 404);
+
+  await db
+    .delete(performanceTolerances)
+    .where(eq(performanceTolerances.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+/** Flatten the engine's shape into table rows. */
+function asRows(table: readonly Tolerance[]) {
+  return table.map((t) => ({
+    code: t.id,
+    trade: t.trade,
+    condition: t.condition,
+    threshold: t.threshold,
+    measurementUnit: t.measurement?.unit ?? null,
+    measurementMax: t.measurement?.maxAcceptable ?? null,
+    measurementOver: t.measurement?.over ?? null,
+    typicalWindowMonths: t.typicalWindowMonths,
+    isZeroTolerance: ZERO_TOLERANCE_IDS.includes(t.id),
+    notes: t.notes,
+    source: "Built-in placeholder set. Replace with your own published standard.",
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // communities

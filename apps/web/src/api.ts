@@ -7,6 +7,7 @@ import type {
   CreatePlanInput,
   CreateSubAssignmentInput,
   CreateSubcontractorInput,
+  CreateToleranceInput,
   ScheduleAppointmentInput,
   SessionUser,
   UpdateAppointmentInput,
@@ -280,6 +281,33 @@ export interface SuggestedClause {
   pageNumber: number | null;
 }
 
+export interface ReadinessStep {
+  key: string;
+  label: string;
+  href: string;
+  count: number;
+  done: boolean;
+  /** True when nothing downstream can work until this exists. */
+  blocking: boolean;
+  why: string;
+}
+
+/** A row of the performance standard. `id` is absent on built-in placeholders. */
+export interface ToleranceRow {
+  id?: string;
+  code: string;
+  trade: string;
+  condition: string;
+  threshold: string;
+  measurementUnit: string | null;
+  measurementMax: number | null;
+  measurementOver: string | null;
+  typicalWindowMonths: number;
+  isZeroTolerance: boolean;
+  notes: string | null;
+  source: string | null;
+}
+
 export interface CommunityRow {
   id: string;
   name: string;
@@ -472,6 +500,38 @@ export const api = {
 
   deleteClause: (id: string) =>
     request<{ ok: boolean }>(`/admin/coverage-terms/${id}`, { method: "DELETE" }),
+
+  readiness: () =>
+    request<{
+      steps: ReadinessStep[];
+      complete: number;
+      total: number;
+      blockedOn: string[];
+    }>("/admin/readiness"),
+
+  // ---------------------------------------------------------- tolerances
+
+  tolerances: () =>
+    request<{
+      tolerances: ToleranceRow[];
+      usingBuiltIn: boolean;
+      builtInCount: number;
+      builtIn: ToleranceRow[];
+    }>("/admin/tolerances"),
+
+  importBuiltInTolerances: () =>
+    request<{ imported: number }>("/admin/tolerances/import-built-in", {
+      method: "POST",
+    }),
+
+  createTolerance: (input: CreateToleranceInput) =>
+    request<{ tolerance: ToleranceRow }>("/admin/tolerances", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  deleteTolerance: (id: string) =>
+    request<{ ok: boolean }>(`/admin/tolerances/${id}`, { method: "DELETE" }),
 
   // ------------------------------------------------------------------ setup
 

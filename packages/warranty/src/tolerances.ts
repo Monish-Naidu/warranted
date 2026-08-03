@@ -236,12 +236,27 @@ export const ZERO_TOLERANCE_IDS: readonly string[] = [
   "electrical.outlet_dead",
 ];
 
-export function findTolerance(id: string): Tolerance | null {
-  return TOLERANCES.find((t) => t.id === id) ?? null;
+/*
+ * Every accessor takes the table as an optional argument, defaulting to the
+ * built-in placeholder set.
+ *
+ * This is what the licensing note above asks for. A builder supplies their own
+ * published standard, it is stored per builder, and it is passed in here. With
+ * nothing supplied the placeholder still answers, so development and the demo
+ * work unchanged and no call site has to know which case it is in.
+ */
+export function findTolerance(
+  id: string,
+  table: readonly Tolerance[] = TOLERANCES,
+): Tolerance | null {
+  return table.find((t) => t.id === id) ?? null;
 }
 
-export function tolerancesForTrade(trade: Trade): Tolerance[] {
-  return TOLERANCES.filter((t) => t.trade === trade);
+export function tolerancesForTrade(
+  trade: Trade,
+  table: readonly Tolerance[] = TOLERANCES,
+): Tolerance[] {
+  return table.filter((t) => t.trade === trade);
 }
 
 /**
@@ -251,16 +266,20 @@ export function tolerancesForTrade(trade: Trade): Tolerance[] {
 export function isWithinTolerance(
   toleranceId: string,
   measuredValue: number,
+  table: readonly Tolerance[] = TOLERANCES,
 ): boolean | null {
-  const tolerance = findTolerance(toleranceId);
+  const tolerance = findTolerance(toleranceId, table);
   if (!tolerance?.measurement) return null;
   return measuredValue <= tolerance.measurement.maxAcceptable;
 }
 
 /** Compact form injected into the AI triage prompt. */
-export function tolerancesAsPromptContext(): string {
-  return TOLERANCES.map((t) => {
-    const zero = ZERO_TOLERANCE_IDS.includes(t.id) ? " [ZERO TOLERANCE]" : "";
+export function tolerancesAsPromptContext(
+  table: readonly Tolerance[] = TOLERANCES,
+  zeroIds: readonly string[] = ZERO_TOLERANCE_IDS,
+): string {
+  return table.map((t) => {
+    const zero = zeroIds.includes(t.id) ? " [ZERO TOLERANCE]" : "";
     return `- ${t.id} (${t.trade})${zero}: ${t.condition} — defect when ${t.threshold}.${
       t.notes ? ` Note: ${t.notes}` : ""
     }`;

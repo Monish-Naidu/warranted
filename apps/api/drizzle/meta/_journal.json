@@ -8,6 +8,13 @@
       "when": 1785734191278,
       "tag": "0000_charming_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785787401476,
+      "tag": "0001_cold_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

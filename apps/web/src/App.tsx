@@ -17,6 +17,7 @@ import {
   IconDocument,
   IconGauge,
   IconGrid,
+  IconRuler,
   IconSearch,
   IconSettings,
   IconSignOut,
@@ -32,6 +33,7 @@ import { LoginPage } from "./pages/Login";
 import { PatternsPage } from "./pages/Patterns";
 import { SchedulePage } from "./pages/Schedule";
 import { SetupPage } from "./pages/Setup";
+import { TolerancesPage } from "./pages/Tolerances";
 import { WarrantyDocPage } from "./pages/WarrantyDoc";
 import { ScorecardPage } from "./pages/Scorecard";
 
@@ -76,6 +78,7 @@ const NAV = [
 /** Setup is deliberately below the daily work, not above it. */
 const SECONDARY_NAV = [
   { to: "/warranty", label: "Warranty document", Icon: IconDocument },
+  { to: "/tolerances", label: "Performance standard", Icon: IconRuler },
   { to: "/setup", label: "Setup", Icon: IconSettings },
 ];
 
@@ -189,6 +192,7 @@ function Shell({ user }: { user: SessionUser }) {
             <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/setup" element={<SetupPage />} />
             <Route path="/warranty" element={<WarrantyDocPage />} />
+            <Route path="/tolerances" element={<TolerancesPage />} />
             <Route path="/subcontractors" element={<ScorecardPage />} />
             <Route path="/patterns" element={<PatternsPage />} />
             <Route path="*" element={<Navigate to="/exposure" replace />} />

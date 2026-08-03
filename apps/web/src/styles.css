@@ -2619,3 +2619,91 @@ input[type="file"] {
   background: var(--surface-inset);
   cursor: pointer;
 }
+
+/* ============================================================== readiness */
+
+.readiness {
+  margin-bottom: var(--space-6);
+}
+
+.readiness-bar {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  overflow: hidden;
+  margin: var(--space-3) 0 var(--space-4);
+}
+
+.readiness-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--ok);
+  transition: width var(--dur) var(--ease);
+}
+
+.readiness-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--space-2);
+}
+
+.readiness-step {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  text-align: left;
+}
+
+/* Blocking and missing is the only state that gets the alarm colour. A
+   warranty document is important but does not stop anything from running. */
+.readiness-step.is-blocking {
+  border-color: var(--critical-border);
+  background: var(--critical-bg);
+}
+
+.readiness-step.is-done {
+  opacity: 0.72;
+}
+
+.readiness-check {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  color: var(--text-faint);
+  font-size: 10px;
+  margin-top: 1px;
+}
+
+.readiness-step.is-done .readiness-check {
+  background: var(--ok-bg);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.readiness-step.is-blocking .readiness-check {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.readiness-label {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.readiness-why {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-top: 2px;
+  line-height: var(--leading-snug);
+}
