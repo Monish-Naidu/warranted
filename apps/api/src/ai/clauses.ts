@@ -1,5 +1,10 @@
 /**
- * Breaking a warranty document into tagged clauses.
+ * Reading a builder's own documents into structured rules.
+ *
+ * Two extractions live here because they are the same job with different
+ * targets: the warranty agreement becomes tagged clauses, and the performance
+ * standard becomes measurable thresholds. Together they are the two documents
+ * every triage proposal is grounded in.
  *
  * Same rule as triage: the model proposes, a human decides. Nothing this
  * returns is written to `coverage_terms` until a coordinator has looked at it
@@ -17,7 +22,12 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { suggestedTermsSchema, type SuggestedTerms } from "@warranted/shared";
+import {
+  suggestedTermsSchema,
+  suggestedTolerancesSchema,
+  type SuggestedTerms,
+  type SuggestedTolerances,
+} from "@warranted/shared";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { env } from "../env.js";
 
@@ -36,9 +46,9 @@ const TERMS_JSON_SCHEMA = zodToJsonSchema(suggestedTermsSchema, {
 });
 
 export class ClauseExtractionUnavailableError extends Error {
-  constructor() {
+  constructor(subject = "Clause extraction", byHand = "clauses") {
     super(
-      "Clause extraction needs ANTHROPIC_API_KEY. Add clauses by hand until it is set.",
+      `${subject} needs ANTHROPIC_API_KEY. Add ${byHand} by hand until it is set.`,
     );
     this.name = "ClauseExtractionUnavailableError";
   }
@@ -128,3 +138,101 @@ Break this into tagged clauses.`,
 }
 
 export const clauseExtractionEnabled = Boolean(client);
+
+
+// ---------------------------------------------------------------------------
+// performance standards
+// ---------------------------------------------------------------------------
+
+const TOLERANCES_JSON_SCHEMA = zodToJsonSchema(suggestedTolerancesSchema, {
+  target: "jsonSchema7",
+  $refStrategy: "none",
+});
+
+const TOLERANCE_SYSTEM_PROMPT = `You read a homebuilder's performance standard and turn it into measurable thresholds a warranty coordinator can apply.
+
+Each threshold answers one question: at what point does an observed condition stop being acceptable and become a defect?
+
+Rules:
+
+- code: a short stable slug, lowercase, dotted, trade first. "drywall.crack", "concrete.slab_crack", "tile.grout_cracking". This is what a citation points at and it must not read like prose.
+- condition: phrase it the way a homeowner would describe the problem, not the way a spec writes it. "Cracks in drywall walls or ceilings", not "Gypsum board surface discontinuity".
+- threshold: the exact point of failure as the document states it, including the units and the span it is measured over.
+- measurementUnit and measurementMax: fill these only when the standard gives a number that can be compared mechanically. Convert fractions to decimals, so 1/8 inch becomes 0.125. Leave both null when the standard calls for judgment rather than a measurement, and do not invent a number to fill the field.
+- measurementOver: the span, when one is given. "32 inches", "any 10 foot run".
+- isZeroTolerance: true only where the standard admits no acceptable amount at any size. Structural failure, active water intrusion, gas leaks, life-safety. Everything else is false.
+- typicalWindowMonths: which warranty year the condition is normally observed and corrected in. Default 12 when the standard does not say.
+
+Never invent a threshold the document does not state. If a section describes a condition without giving a limit, still return it with the threshold quoted as written and the measurement fields null. A coordinator can decide what to do with it; a number you made up is worse than a gap.`;
+
+export interface ToleranceExtractionResult {
+  tolerances: SuggestedTolerances["tolerances"];
+  model: string;
+  promptVersion: string;
+  latencyMs: number;
+}
+
+export async function suggestTolerances(
+  documentText: string,
+  documentTitle: string,
+): Promise<ToleranceExtractionResult> {
+  if (!client) {
+    throw new ClauseExtractionUnavailableError(
+      "Reading a performance standard",
+      "thresholds",
+    );
+  }
+
+  const startedAt = Date.now();
+
+  const response = await client.messages.create({
+    model: MODEL,
+    max_tokens: 16000,
+    system: TOLERANCE_SYSTEM_PROMPT,
+    output_config: {
+      format: { type: "json_schema", schema: TOLERANCES_JSON_SCHEMA },
+    },
+    messages: [
+      {
+        role: "user",
+        content: `Document title: ${documentTitle}
+
+--- BEGIN PERFORMANCE STANDARD ---
+${documentText}
+--- END PERFORMANCE STANDARD ---
+
+Turn this into measurable thresholds.`,
+      },
+    ],
+  });
+
+  const latencyMs = Date.now() - startedAt;
+
+  if (response.stop_reason === "refusal") {
+    throw new Error(
+      `Extraction declined by safety classifier (${response.stop_details?.category ?? "unspecified"}).`,
+    );
+  }
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      "The response was truncated before the document finished. Try a shorter section, or add the remaining thresholds by hand.",
+    );
+  }
+
+  const text = response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+
+  const parsed = suggestedTolerancesSchema.safeParse(JSON.parse(text));
+  if (!parsed.success) {
+    throw new Error(`Extraction returned malformed thresholds: ${parsed.error.message}`);
+  }
+
+  return {
+    tolerances: parsed.data.tolerances,
+    model: MODEL,
+    promptVersion: CLAUSE_PROMPT_VERSION,
+    latencyMs,
+  };
+}

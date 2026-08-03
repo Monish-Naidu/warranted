@@ -292,6 +292,20 @@ export interface ReadinessStep {
   why: string;
 }
 
+/** A proposal, not a saved threshold. Nothing persists until a human saves it. */
+export interface SuggestedTolerance {
+  code: string;
+  trade: string;
+  condition: string;
+  threshold: string;
+  measurementUnit: string | null;
+  measurementMax: number | null;
+  measurementOver: string | null;
+  typicalWindowMonths: number;
+  isZeroTolerance: boolean;
+  notes: string | null;
+}
+
 /** A row of the performance standard. `id` is absent on built-in placeholders. */
 export interface ToleranceRow {
   id?: string;
@@ -466,7 +480,7 @@ export const api = {
     const body = new FormData();
     body.append("file", file);
     const token = getToken();
-    const response = await fetch("/api/admin/warranty-documents/extract-file", {
+    const response = await fetch("/api/admin/extract-file", {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body,
@@ -485,6 +499,18 @@ export const api = {
       filename: string;
     }>;
   },
+
+  suggestTolerances: (text: string, title: string) =>
+    request<{ tolerances: SuggestedTolerance[]; model: string; latencyMs: number }>(
+      "/admin/tolerances/suggest",
+      { method: "POST", body: JSON.stringify({ text, title }) },
+    ),
+
+  saveTolerances: (tolerances: CreateToleranceInput[]) =>
+    request<{ saved: number; skipped: number }>("/admin/tolerances/batch", {
+      method: "POST",
+      body: JSON.stringify({ tolerances }),
+    }),
 
   suggestClauses: (documentId: string) =>
     request<{ terms: SuggestedClause[]; model: string; latencyMs: number }>(

@@ -241,6 +241,36 @@ export const createToleranceSchema = z.object({
 });
 export type CreateToleranceInput = z.infer<typeof createToleranceSchema>;
 
+/**
+ * What the model proposes when asked to read a performance standard.
+ *
+ * Deliberately not the same shape as `createToleranceSchema`: the model is not
+ * trusted to invent a stable `code`, so it proposes a slug and a human sees it
+ * before anything is stored. Once a claim cites a code, changing it orphans
+ * the citation.
+ */
+export const suggestedTolerancesSchema = z.object({
+  tolerances: z
+    .array(
+      z.object({
+        code: z.string().max(120),
+        trade: tradeSchema,
+        condition: z.string().max(400),
+        threshold: z.string().max(300),
+        measurementUnit: z
+          .enum(["inch", "degree", "count", "percent"])
+          .nullable(),
+        measurementMax: z.number().nullable(),
+        measurementOver: z.string().max(60).nullable(),
+        typicalWindowMonths: z.number().int().min(0).max(240),
+        isZeroTolerance: z.boolean(),
+        notes: z.string().max(1000).nullable(),
+      }),
+    )
+    .max(120),
+});
+export type SuggestedTolerances = z.infer<typeof suggestedTolerancesSchema>;
+
 export const createCommunitySchema = z.object({
   name: z.string().min(1).max(200),
   city: z.string().min(1).max(120),

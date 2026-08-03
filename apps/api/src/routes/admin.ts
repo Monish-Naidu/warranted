@@ -58,6 +58,7 @@ import {
 import {
   ClauseExtractionUnavailableError,
   suggestClauses,
+  suggestTolerances,
 } from "../ai/clauses.js";
 import { builderIdOf, requireAuth, requireBuilderStaff, type AppEnv } from "../middleware/auth.js";
 
@@ -223,14 +224,15 @@ adminRoutes.get("/readiness", async (c) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Pull text out of an uploaded file.
+ * Pull text out of an uploaded file. Shared by the warranty agreement and the
+ * performance standard, which arrive the same way.
  *
  * Only the text is kept. The original file would need object storage, which
  * this deployment does not have, and `extractedText` is the field that
  * actually does the work: it is what triage reads and what clause extraction
  * runs over.
  */
-adminRoutes.post("/warranty-documents/extract-file", async (c) => {
+adminRoutes.post("/extract-file", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");
 
@@ -580,6 +582,82 @@ adminRoutes.post("/tolerances/import-built-in", async (c) => {
 
   return c.json({ imported: inserted.length, tolerances: inserted }, 201);
 });
+
+/**
+ * Read a performance standard into proposed thresholds.
+ *
+ * Takes the text directly rather than a stored document: the performance
+ * standard is a separate document from the warranty agreement and there is
+ * nowhere to keep it yet, so it is read once and the thresholds are what
+ * persist. Nothing is written here.
+ */
+adminRoutes.post(
+  "/tolerances/suggest",
+  zValidator(
+    "json",
+    z.object({
+      text: z.string().min(1, "There is no text to read."),
+      title: z.string().max(200).default("Performance standard"),
+    }),
+  ),
+  async (c) => {
+    const { text, title } = c.req.valid("json");
+    try {
+      return c.json(await suggestTolerances(text, title));
+    } catch (error) {
+      if (error instanceof ClauseExtractionUnavailableError) {
+        return c.json(
+          { error: { code: "ai_unavailable", message: error.message } },
+          503,
+        );
+      }
+      return c.json(
+        {
+          error: {
+            code: "extraction_failed",
+            message: error instanceof Error ? error.message : "Extraction failed.",
+          },
+        },
+        502,
+      );
+    }
+  },
+);
+
+/**
+ * Save a reviewed batch.
+ *
+ * `onConflictDoNothing` on (builder, code) rather than an upsert: a code that
+ * already exists is one a claim may already cite, and silently rewriting its
+ * threshold would change the meaning of past citations. Re-extracting a
+ * document therefore adds what is new and leaves what is there alone.
+ */
+adminRoutes.post(
+  "/tolerances/batch",
+  zValidator("json", z.object({ tolerances: z.array(createToleranceSchema).min(1) })),
+  async (c) => {
+    const builderId = builderIdOf(c);
+
+    const saved = await db
+      .insert(performanceTolerances)
+      .values(
+        c.req.valid("json").tolerances.map((tolerance) => ({
+          ...tolerance,
+          builderId,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [performanceTolerances.builderId, performanceTolerances.code],
+      })
+      .returning();
+
+    const requested = c.req.valid("json").tolerances.length;
+    return c.json(
+      { saved: saved.length, skipped: requested - saved.length, tolerances: saved },
+      201,
+    );
+  },
+);
 
 adminRoutes.post(
   "/tolerances",
