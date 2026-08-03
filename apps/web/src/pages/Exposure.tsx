@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ExposureWindow, type Lot } from "../api";
-import { IconCheck } from "../components/Icon";
+
 import { EmptyState, ErrorState, PageSkeleton } from "../components/States";
 
 export function ExposurePage() {
@@ -31,28 +31,32 @@ export function ExposurePage() {
 
       <div className="stat-row">
         <Stat
+          row={0}
           value={summary.criticalAlerts}
           label="Critical alerts"
           tone={summary.criticalAlerts > 0 ? "critical" : undefined}
         />
         <Stat
+          row={1}
           value={summary.warningAlerts}
           label="Warnings"
           tone={summary.warningAlerts > 0 ? "warning" : undefined}
         />
         <Stat
+          row={2}
           value={summary.undocumentedAssignments}
           label="Trades with no completion date"
           tone={summary.undocumentedAssignments > 0 ? "critical" : undefined}
         />
         <Stat
+          row={3}
           value={summary.lotsWithUnscheduledElevenMonth}
           label="11-month reviews due, unscheduled"
           tone={
             summary.lotsWithUnscheduledElevenMonth > 0 ? "warning" : undefined
           }
         />
-        <Stat value={summary.lots} label="Homes under warranty" />
+        <Stat row={4} value={summary.lots} label="Homes under warranty" />
       </div>
 
       <section className="section">
@@ -66,18 +70,16 @@ export function ExposurePage() {
         </div>
 
         {alerts.length === 0 ? (
-          <EmptyState
-            title="No exposure alerts"
-            icon={<IconCheck size={20} />}
-          >
+          <EmptyState title="No exposure alerts" tone="ok">
             Every trade is either back-to-back with your warranty or already
             closed out.
           </EmptyState>
         ) : (
-          alerts.map((alert) => (
+          alerts.map((alert, i) => (
             <div
               key={`${alert.assignmentId}-${alert.trade}`}
               className={`alert ${alert.severity}`}
+              style={{ "--row": i } as React.CSSProperties}
             >
               <div className="alert-bar" aria-hidden />
               <div className="alert-body">
@@ -124,7 +126,7 @@ export function ExposurePage() {
         ) : (
           [...lots]
             .sort(riskFirst)
-            .map((lot) => <LotCard key={lot.homeId} lot={lot} />)
+            .map((lot, i) => <LotCard key={lot.homeId} lot={lot} row={i} />)
         )}
       </section>
     </>
@@ -152,13 +154,18 @@ function Stat({
   value,
   label,
   tone,
+  row = 0,
 }: {
   value: number;
   label: string;
   tone?: "critical" | "warning";
+  row?: number;
 }) {
   return (
-    <div className={`stat ${tone ? `is-${tone}` : ""}`}>
+    <div
+      className={`stat ${tone ? `is-${tone}` : ""}`}
+      style={{ "--row": row } as React.CSSProperties}
+    >
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
     </div>
@@ -205,7 +212,7 @@ function riskFirst(a: Lot, b: Lot): number {
   return aDue - bDue;
 }
 
-function LotCard({ lot }: { lot: Lot }) {
+function LotCard({ lot, row }: { lot: Lot; row: number }) {
   const queryClient = useQueryClient();
 
   const schedule = useMutation({
@@ -235,6 +242,7 @@ function LotCard({ lot }: { lot: Lot }) {
   return (
     <article
       className={`lot-card ${lot.undocumentedTrades > 0 ? "has-critical" : ""}`}
+      style={{ "--row": row } as React.CSSProperties}
     >
       <header className="lot-head">
         <div style={{ minWidth: 0 }}>
@@ -285,11 +293,12 @@ function LotCard({ lot }: { lot: Lot }) {
                   Number(b.unknown) - Number(a.unknown) ||
                   b.exposureDays - a.exposureDays,
               )
-              .map((window) => (
+              .map((window, i) => (
                 <ClockBar
                   key={window.assignmentId}
                   window={window}
                   warrantyStart={lot.warrantyStartDate}
+                  row={i}
                 />
               ))}
           </div>
@@ -314,9 +323,11 @@ function LotCard({ lot }: { lot: Lot }) {
 function ClockBar({
   window: w,
   warrantyStart,
+  row,
 }: {
   window: ExposureWindow;
   warrantyStart: string;
+  row: number;
 }) {
   const totalDays = Math.max(1, daysBetween(warrantyStart, w.builderCoverageEnd));
   const exposedDays = Math.min(Math.max(w.exposureDays, 0), totalDays);
@@ -335,7 +346,7 @@ function ClockBar({
       : `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: covered back-to-back through ${w.builderCoverageEnd}.`;
 
   return (
-    <div className="clock">
+    <div className="clock" style={{ "--row": row } as React.CSSProperties}>
       <div className="clock-trade">
         <div className="clock-trade-name">{w.trade.replace(/_/g, " ")}</div>
         <div className="clock-sub">{w.subcontractorName}</div>

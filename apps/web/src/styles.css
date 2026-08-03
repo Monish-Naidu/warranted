@@ -1513,6 +1513,375 @@ label {
   background: var(--warning);
 }
 
+/* ================================================================ motion */
+
+/*
+ * The clock bars draw themselves on mount, staggered down the list.
+ *
+ * This is not decoration. The bar's meaning is the *ratio* between the
+ * covered segment and the exposed tail, and watching it resolve makes that
+ * ratio legible in a way a static bar doesn't — the eye follows the fill and
+ * stops where the hatching starts. `--row` carries the row index so the list
+ * reads top to bottom instead of flashing in at once.
+ *
+ * scaleX rather than width: it runs on the compositor, so a lot with a dozen
+ * trades doesn't stutter.
+ */
+@keyframes draw-from-left {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes draw-from-right {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.clock-covered,
+.clock-exposed,
+.clock-unknown {
+  transform-origin: left center;
+  animation: draw-from-left 620ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 55ms);
+}
+
+.clock-exposed {
+  transform-origin: right center;
+  animation-name: draw-from-right;
+  /* Starts as the covered segment finishes, so the tail reads as what's left
+     over rather than as a second, competing bar. */
+  animation-delay: calc(var(--row, 0) * 55ms + 180ms);
+}
+
+.clock-today {
+  animation: fade-in 400ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 55ms + 520ms);
+}
+
+.clock-days {
+  animation: fade-in 400ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 55ms + 300ms);
+}
+
+/* Route-level transition. Keyed on pathname in App.tsx so it replays on
+   navigation, not on every re-render. */
+.page-enter {
+  animation: fade-rise 320ms var(--ease) both;
+}
+
+.stat {
+  animation: fade-rise 380ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 45ms);
+}
+
+.lot-card {
+  animation: fade-rise 400ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 60ms);
+}
+
+.alert {
+  animation: fade-rise 360ms var(--ease) both;
+  animation-delay: calc(var(--row, 0) * 50ms);
+}
+
+/* ------------------------------------------------------- interaction */
+
+.stat {
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.stat:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  border-color: var(--border-strong);
+}
+
+.lot-card:hover {
+  border-color: var(--border-strong);
+}
+
+.lot-card.has-critical:hover {
+  border-color: var(--critical);
+}
+
+.btn {
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.nav-link {
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.nav-link:active {
+  transform: scale(0.985);
+}
+
+/* The track lifts slightly on hover so the row you're reading is obvious in a
+   dense list. */
+.clock {
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--ease);
+  margin: 0 calc(var(--space-2) * -1);
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+.clock:hover {
+  background: var(--surface-2);
+}
+
+.photo-grid img {
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+.photo-grid img:hover {
+  transform: scale(1.015);
+  box-shadow: var(--shadow);
+}
+
+/* Motion is enhancement only. Under reduced-motion everything above resolves
+   to its final state immediately — the global rule near the top of this file
+   collapses the durations, and these reset the transforms that would
+   otherwise be left mid-animation. */
+@media (prefers-reduced-motion: reduce) {
+  .clock-covered,
+  .clock-exposed,
+  .clock-unknown {
+    transform: none;
+  }
+
+  .stat:hover,
+  .btn:hover:not(:disabled),
+  .photo-grid img:hover {
+    transform: none;
+  }
+}
+
+/* ======================================================= command palette */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgb(0 0 0 / 0.35);
+  backdrop-filter: blur(2px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh var(--space-4) var(--space-4);
+  animation: fade-in 160ms var(--ease) both;
+}
+
+[data-theme="dark"] .palette-backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.palette {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: pop-in 200ms var(--ease) both;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+.palette-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.palette-input-row input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--text-md);
+}
+
+.palette-input-row input:focus {
+  outline: none;
+  box-shadow: none;
+  border: none;
+}
+
+.palette-results {
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.palette-group-label {
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.palette-item[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+[data-theme="dark"] .palette-item[aria-selected="true"] {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+.palette-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-item-title,
+.palette-item-sub {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-item-title {
+  font-weight: 550;
+}
+
+.palette-item-sub {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.palette-foot {
+  border-top: 1px solid var(--border);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  display: flex;
+  gap: var(--space-4);
+  flex: none;
+}
+
+kbd {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+/* The sidebar trigger. */
+.palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.palette-trigger:hover {
+  border-color: var(--border-strong);
+  color: var(--text-dim);
+}
+
+.palette-trigger kbd {
+  margin-left: auto;
+}
+
 /* ============================================================ responsive */
 
 @media (max-width: 900px) {

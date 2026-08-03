@@ -119,6 +119,15 @@ export function IconAlert({ size = 16, className }: IconProps) {
   );
 }
 
+export function IconSearch({ size = 16, className }: IconProps) {
+  return (
+    <svg {...svgProps(size)} className={className}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m20 20-4.9-4.9" />
+    </svg>
+  );
+}
+
 export function IconInbox({ size = 16, className }: IconProps) {
   return (
     <svg {...svgProps(size)} className={className}>

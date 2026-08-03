@@ -1,11 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SessionUser } from "@warranted/shared";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import {
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { api, getToken, setToken } from "./api";
+import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import {
   IconClipboard,
   IconGauge,
   IconGrid,
+  IconSearch,
   IconSignOut,
   IconUsers,
 } from "./components/Icon";
@@ -56,6 +65,8 @@ const NAV = [
 
 function Shell({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const palette = useCommandPalette();
 
   // The critical-alert count rides on the Exposure nav item so it's visible
   // from every page — this is the number the coordinator is employed to drive
@@ -77,6 +88,16 @@ function Shell({ user }: { user: SessionUser }) {
           <span className="brand-mark" aria-hidden />
           Warranted
         </div>
+
+        <button
+          type="button"
+          className="palette-trigger"
+          onClick={() => palette.setOpen(true)}
+        >
+          <IconSearch size={15} />
+          Search
+          <kbd>{isApple() ? "⌘K" : "Ctrl K"}</kbd>
+        </button>
 
         <div className="nav-group">
           <div className="nav-label">Portfolio</div>
@@ -124,17 +145,34 @@ function Shell({ user }: { user: SessionUser }) {
       </nav>
 
       <main className="main" id="main">
-        <Routes>
-          <Route path="/exposure" element={<ExposurePage />} />
-          <Route path="/claims" element={<ClaimsPage />} />
-          <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
-          <Route path="/subcontractors" element={<ScorecardPage />} />
-          <Route path="/patterns" element={<PatternsPage />} />
-          <Route path="*" element={<Navigate to="/exposure" replace />} />
-        </Routes>
+        {/*
+          Keyed on pathname so the enter animation replays on navigation and
+          not on every state change within a page — a bar chart that re-drew
+          itself each time a mutation settled would be unreadable.
+        */}
+        <div className="page-enter" key={location.pathname}>
+          <Routes>
+            <Route path="/exposure" element={<ExposurePage />} />
+            <Route path="/claims" element={<ClaimsPage />} />
+            <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
+            <Route path="/subcontractors" element={<ScorecardPage />} />
+            <Route path="/patterns" element={<PatternsPage />} />
+            <Route path="*" element={<Navigate to="/exposure" replace />} />
+          </Routes>
+        </div>
       </main>
+
+      <CommandPalette
+        open={palette.open}
+        onClose={() => palette.setOpen(false)}
+      />
     </div>
   );
+}
+
+/** Only decides which modifier to print in the shortcut hint. */
+function isApple(): boolean {
+  return /Mac|iPhone|iPad/.test(navigator.platform ?? navigator.userAgent);
 }
 
 function initials(name: string): string {
