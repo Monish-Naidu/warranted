@@ -12,6 +12,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { ZodError } from "zod";
 import { aiEnabled, env } from "./env.js";
+import { pool } from "./db/index.js";
 import { authRoutes } from "./routes/auth.js";
 import { builderRoutes } from "./routes/builder.js";
 import { claimRoutes } from "./routes/claims.js";
@@ -38,6 +39,38 @@ app.get("/health", (c) =>
     triage: aiEnabled ? "enabled" : "disabled (no ANTHROPIC_API_KEY)",
   }),
 );
+
+/*
+ * Readiness, as distinct from liveness. `/health` proves the process started;
+ * this proves it can actually reach Postgres. Worth having permanently: on a
+ * serverless deployment the two failures are indistinguishable from the
+ * outside, and a request that needs the database just hangs until the
+ * platform kills it.
+ *
+ * Reports the driver's own error message, which names the failure (timeout,
+ * auth, TLS) without exposing the connection string.
+ */
+app.get("/health/db", async (c) => {
+  const startedAt = Date.now();
+  try {
+    const result = await pool.query("select 1 as ok");
+    return c.json({
+      ok: result.rows[0]?.ok === 1,
+      latencyMs: Date.now() - startedAt,
+      poolMax: env.DB_POOL_MAX,
+    });
+  } catch (error) {
+    return c.json(
+      {
+        ok: false,
+        latencyMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as { code?: string })?.code ?? null,
+      },
+      503,
+    );
+  }
+});
 
 app.route("/api/auth", authRoutes);
 app.route("/api/homes", homeRoutes);
