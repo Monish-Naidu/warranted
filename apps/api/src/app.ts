@@ -72,35 +72,6 @@ app.get("/health/db", async (c) => {
   }
 });
 
-/*
- * TEMPORARY diagnostic. Login times out on Vercel while /health/db answers in
- * about a second, which isolates the stall to password hashing — this
- * measures it directly instead of guessing. Remove once the cause is fixed.
- */
-app.get("/health/_timing", async (c) => {
-  const { hashPassword } = await import("./auth/password.js");
-
-  const scryptStart = Date.now();
-  let scryptMs: number | null = null;
-  let scryptError: string | null = null;
-  try {
-    await hashPassword("benchmark-only-value");
-    scryptMs = Date.now() - scryptStart;
-  } catch (error) {
-    scryptError = error instanceof Error ? error.message : String(error);
-    scryptMs = Date.now() - scryptStart;
-  }
-
-  return c.json({
-    scryptMs,
-    scryptError,
-    memoryLimitMb: Number(process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE) || null,
-    heapTotalMb: Math.round(process.memoryUsage().heapTotal / 1048576),
-    rssMb: Math.round(process.memoryUsage().rss / 1048576),
-    nodeVersion: process.version,
-  });
-});
-
 app.route("/api/auth", authRoutes);
 app.route("/api/homes", homeRoutes);
 app.route("/api/claims", claimRoutes);
