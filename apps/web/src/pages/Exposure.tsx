@@ -466,7 +466,9 @@ function ClockBar({
             to tell that two rows on the same lot are on different scales. */}
         <div className="clock-axis">
           <span>{warrantyStart}</span>
-          {!w.unknown && w.subCoverageEnd && coveredPct > 16 && coveredPct < 88 && (
+          {/* Only when the boundary sits clear of both endpoint labels. Near
+              either end it would sit on top of them. */}
+          {!w.unknown && w.subCoverageEnd && coveredPct > 28 && coveredPct < 72 && (
             <span
               className="clock-axis-mark"
               style={{ left: `${coveredPct}%` }}

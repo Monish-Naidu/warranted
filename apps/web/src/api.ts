@@ -281,6 +281,19 @@ export const api = {
       { method: "POST", body: JSON.stringify(input) },
     ),
 
+  /**
+   * Backfill a completion date on an assignment that never got one.
+   *
+   * `sub_warranty_start` deliberately defaults to `completed_at` rather than
+   * to the home's warranty start, so recording this one date is what
+   * establishes the subcontractor's window and makes the trade backchargeable.
+   */
+  updateAssignment: (assignmentId: string, input: { completedAt: string }) =>
+    request<{ assignment: unknown }>(`/builder/assignments/${assignmentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
   scheduleMilestone: (homeId: string, kind: string, scheduledFor: string) =>
     request<{ milestone: unknown }>(
       `/homes/${homeId}/milestones/${kind}/schedule`,

@@ -11,6 +11,7 @@ import {
 import { api, getToken, setToken } from "./api";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import {
+  IconAlert,
   IconClipboard,
   IconGauge,
   IconGrid,
@@ -23,6 +24,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { ClaimDetailPage } from "./pages/ClaimDetail";
 import { ClaimsPage } from "./pages/Claims";
 import { ExposurePage } from "./pages/Exposure";
+import { GapsPage } from "./pages/Gaps";
 import { LoginPage } from "./pages/Login";
 import { PatternsPage } from "./pages/Patterns";
 import { ScorecardPage } from "./pages/Scorecard";
@@ -58,6 +60,7 @@ export function App() {
 
 const NAV = [
   { to: "/exposure", label: "Exposure", Icon: IconGauge },
+  { to: "/gaps", label: "Missing dates", Icon: IconAlert },
   { to: "/claims", label: "Claims", Icon: IconClipboard },
   { to: "/subcontractors", label: "Subcontractors", Icon: IconUsers },
   { to: "/patterns", label: "Plan patterns", Icon: IconGrid },
@@ -76,6 +79,7 @@ function Shell({ user }: { user: SessionUser }) {
     queryFn: api.exposure,
   });
   const criticalCount = exposure?.summary.criticalAlerts ?? 0;
+  const undocumentedCount = exposure?.summary.undocumentedAssignments ?? 0;
 
   return (
     <div className="shell">
@@ -107,6 +111,9 @@ function Shell({ user }: { user: SessionUser }) {
               {label}
               {to === "/exposure" && criticalCount > 0 && (
                 <span className="nav-count critical">{criticalCount}</span>
+              )}
+              {to === "/gaps" && undocumentedCount > 0 && (
+                <span className="nav-count critical">{undocumentedCount}</span>
               )}
             </NavLink>
           ))}
@@ -153,6 +160,7 @@ function Shell({ user }: { user: SessionUser }) {
         <div className="page-enter" key={location.pathname}>
           <Routes>
             <Route path="/exposure" element={<ExposurePage />} />
+            <Route path="/gaps" element={<GapsPage />} />
             <Route path="/claims" element={<ClaimsPage />} />
             <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
             <Route path="/subcontractors" element={<ScorecardPage />} />
