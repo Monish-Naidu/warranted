@@ -21,7 +21,8 @@
     "db:studio": "pnpm --filter @warranted/api db:studio",
     "setup": "pnpm install && pnpm db:migrate && pnpm db:seed",
     "db:local": "pnpm --filter @warranted/api db:local",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "verify:build": "NODEJS_HELPERS=0 vercel build --yes && node scripts/check-build-output.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",

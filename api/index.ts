@@ -16,62 +16,43 @@
  * targets the Web-standard runtime and expects a `Request`; on the Node
  * runtime it fails at request time with `this.raw.headers.get is not a
  * function`.
+ *
+ * ---------------------------------------------------------------------------
+ * `NODEJS_HELPERS=0` must stay set on the project, and it is not optional.
+ *
+ * By default Vercel's Node launcher wraps the handler with helpers that read
+ * the request body themselves and expose a parsed value on `req.body`. That
+ * leaves the underlying stream drained, and this adapter builds its Web
+ * `Request` by piping that stream, so it waits forever on bytes that already
+ * went elsewhere. The function hangs until the platform kills it.
+ *
+ * The symptom is badly misleading. Requests without a body are unaffected, so
+ * `/health` and every GET look perfectly healthy while every login, claim
+ * submission, and file upload times out with nothing in the log but a platform
+ * timeout.
+ *
+ * Replaying the bytes out of `req.body` only half works: the helpers parse
+ * JSON and urlencoded but hand back nothing for multipart, which is why file
+ * upload stayed broken after login was fixed. Turning the helpers off is the
+ * real fix, and the stream then arrives intact for every content type.
+ *
+ * The flag is read at *build* time, not runtime, and only as an environment
+ * variable — `config.helpers` in the source file is not consulted. See
+ * @vercel/node: shouldAddHelpers = !(config.helpers === false ||
+ * process.env.NODEJS_HELPERS === "0"). `scripts/check-build-output.mjs`
+ * asserts the built function has it off, because losing it silently breaks
+ * every write path in the product.
+ * ---------------------------------------------------------------------------
  */
 
 import { handle } from "@hono/node-server/vercel";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { Readable } from "node:stream";
 import { app } from "../apps/api/dist/app.bundle.cjs";
 
 export const config = {
   runtime: "nodejs",
+
   // Triage calls the Anthropic API, which can outlast the 10s default.
   maxDuration: 60,
 };
 
-const honoHandler = handle(app);
-
-type VercelRequest = IncomingMessage & { body?: unknown };
-
-/**
- * Vercel's Node launcher runs with `shouldAddHelpers: true`: it reads the
- * request body itself and exposes the parsed value as `req.body`. That leaves
- * the underlying stream consumed, and the adapter — which builds a Web
- * `Request` by piping that stream — then waits on data that will never
- * arrive. The function hangs until the platform kills it.
- *
- * The symptom is specific and easy to misread: requests *without* a body are
- * fine, so `/health` and every GET look perfectly healthy while every login
- * and every claim submission times out.
- *
- * So we put the bytes back: rebuild a readable stream carrying the body the
- * helpers already consumed, and graft the original request's metadata onto it
- * before handing it to the adapter.
- */
-export default function handler(req: VercelRequest, res: ServerResponse) {
-  if (req.body === undefined || req.body === null) {
-    return honoHandler(req, res);
-  }
-
-  const raw = Buffer.isBuffer(req.body)
-    ? req.body
-    : typeof req.body === "string"
-      ? Buffer.from(req.body)
-      : Buffer.from(JSON.stringify(req.body));
-
-  const replayed = Readable.from([raw]) as unknown as IncomingMessage;
-
-  Object.assign(replayed, {
-    headers: { ...req.headers, "content-length": String(raw.byteLength) },
-    headersDistinct: req.headersDistinct,
-    rawHeaders: req.rawHeaders,
-    method: req.method,
-    url: req.url,
-    httpVersion: req.httpVersion,
-    httpVersionMajor: req.httpVersionMajor,
-    httpVersionMinor: req.httpVersionMinor,
-    socket: req.socket,
-  });
-
-  return honoHandler(replayed, res);
-}
+export default handle(app);
