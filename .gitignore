@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+.expo/
+.turbo/
+*.tsbuildinfo
+
+# env — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# uploads (local dev photo storage)
+apps/api/uploads/
+
+# native build output
+apps/mobile/ios/
+apps/mobile/android/
+
+# os / editor
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# claude local overrides
+.claude/settings.local.json

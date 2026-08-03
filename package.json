@@ -1,0 +1,27 @@
+{
+  "name": "warranted",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Warranty infrastructure connecting home buyers to their builders",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/api\" --filter \"./apps/web\" dev",
+    "dev:api": "pnpm --filter @warranted/api dev",
+    "dev:web": "pnpm --filter @warranted/web dev",
+    "dev:mobile": "pnpm --filter @warranted/mobile start",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @warranted/api db:generate",
+    "db:migrate": "pnpm --filter @warranted/api db:migrate",
+    "db:seed": "pnpm --filter @warranted/api db:seed",
+    "db:reset": "pnpm --filter @warranted/api db:reset",
+    "db:studio": "pnpm --filter @warranted/api db:studio",
+    "setup": "pnpm install && pnpm db:migrate && pnpm db:seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
