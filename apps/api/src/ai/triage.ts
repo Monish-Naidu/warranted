@@ -11,7 +11,6 @@
  * is recorded against the assessment that prompted it.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   aiAssessmentSchema,
@@ -26,16 +25,20 @@ import {
   type Tolerance,
 } from "@warranted/warranty";
 import { readFile } from "node:fs/promises";
-import { env } from "../env.js";
+import {
+  activeProvider,
+  generateStructured,
+  type InlineImage,
+} from "./provider.js";
 
 /** Bump when the prompt changes so assessments stay comparable over time. */
 export const PROMPT_VERSION = "2026-08-02.1";
 
-const MODEL = "claude-opus-5";
-
-const client = env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
-  : null;
+/*
+ * The model is chosen by `ai/provider.ts`, not here. Which one answers is a
+ * deployment decision; what it is asked and how the answer is validated is
+ * the product, and neither changes when the provider does.
+ */
 
 /**
  * The API constrains generation to this schema. We still parse the result back
@@ -234,7 +237,7 @@ Assess the photos and the description together. Produce your structured recommen
 
 async function buildPhotoBlocks(
   photos: TriageContext["photoPaths"],
-): Promise<Anthropic.ImageBlockParam[]> {
+): Promise<InlineImage[]> {
   // Cap at 8. Beyond that the marginal photo rarely changes the determination
   // and the token cost is real — a coordinator can request more if needed.
   const capped = photos.slice(0, 8);
@@ -242,12 +245,8 @@ async function buildPhotoBlocks(
     capped.map(async (photo) => {
       const data = await readFile(photo.path);
       return {
-        type: "image" as const,
-        source: {
-          type: "base64" as const,
-          media_type: photo.contentType as "image/jpeg" | "image/png",
-          data: data.toString("base64"),
-        },
+        mediaType: photo.contentType,
+        base64: data.toString("base64"),
       };
     }),
   );
@@ -256,7 +255,7 @@ async function buildPhotoBlocks(
 export class TriageUnavailableError extends Error {
   constructor() {
     super(
-      "Claim triage is unavailable: ANTHROPIC_API_KEY is not set. Claims are still accepted and queued for manual review.",
+      "Claim triage is unavailable: no model provider is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY. Claims are still accepted and queued for manual review.",
     );
     this.name = "TriageUnavailableError";
   }
@@ -271,46 +270,27 @@ export class TriageUnavailableError extends Error {
  * because an internal service is down.
  */
 export async function triageClaim(ctx: TriageContext): Promise<TriageResult> {
-  if (!client) throw new TriageUnavailableError();
+  if (!activeProvider()) throw new TriageUnavailableError();
 
   const photoBlocks = await buildPhotoBlocks(ctx.photoPaths);
   const startedAt = Date.now();
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
+  const response = await generateStructured({
     system: SYSTEM_PROMPT,
-    output_config: {
-      format: { type: "json_schema", schema: ASSESSMENT_JSON_SCHEMA },
-    },
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...photoBlocks,
-          { type: "text", text: buildUserPrompt(ctx) },
-        ],
-      },
-    ],
+    userText: buildUserPrompt(ctx),
+    images: photoBlocks,
+    schema: ASSESSMENT_JSON_SCHEMA,
+    maxTokens: 16000,
   });
 
   const latencyMs = Date.now() - startedAt;
 
-  if (response.stop_reason === "refusal") {
-    throw new Error(
-      `Triage declined by safety classifier (${response.stop_details?.category ?? "unspecified"}). Routing to manual review.`,
-    );
-  }
-  if (response.stop_reason === "max_tokens") {
-    throw new Error("Triage response was truncated. Routing to manual review.");
-  }
-
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-
-  const parsed = aiAssessmentSchema.safeParse(JSON.parse(text));
+  /*
+   * The provider's schema enforcement is a strong hint, not the contract.
+   * Gemini's is a lossy subset of what zod expresses, so this parse is what
+   * actually guarantees the shape and applies the domain defaults.
+   */
+  const parsed = aiAssessmentSchema.safeParse(JSON.parse(response.text));
   if (!parsed.success) {
     throw new Error(
       `Triage returned a malformed assessment: ${parsed.error.message}`,
@@ -325,10 +305,12 @@ export async function triageClaim(ctx: TriageContext): Promise<TriageResult> {
       ...assessment,
       needsHumanReview: assessment.needsHumanReview || assessment.citations.length === 0,
     },
-    model: MODEL,
+    // Recorded per assessment so a proposal stays interpretable after the
+    // deployment switches providers, which is the point of storing it at all.
+    model: response.model,
     promptVersion: PROMPT_VERSION,
     latencyMs,
-    inputTokens: response.usage.input_tokens ?? null,
-    outputTokens: response.usage.output_tokens ?? null,
+    inputTokens: null,
+    outputTokens: null,
   };
 }

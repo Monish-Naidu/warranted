@@ -12,3 +12,9 @@ allowBuilds:
   # with ERR_PNPM_IGNORED_BUILDS rather than warning.
   '@embedded-postgres/linux-x64': false
   '@embedded-postgres/linux-arm64': false
+  # Neither needs its postinstall. @google/genai is plain JS, and protobufjs's
+  # script only matters for its CLI, which nothing here uses. Listing them
+  # explicitly is not optional: pnpm fails an install outright on an unlisted
+  # build script, which is what broke the Vercel deploy once already.
+  '@google/genai': false
+  protobufjs: false

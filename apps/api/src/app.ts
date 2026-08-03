@@ -13,6 +13,7 @@ import { logger } from "hono/logger";
 import { ZodError } from "zod";
 import { aiEnabled, env } from "./env.js";
 import { pool } from "./db/index.js";
+import { activeModel, activeProvider } from "./ai/provider.js";
 import { adminRoutes } from "./routes/admin.js";
 import { appointmentRoutes } from "./routes/appointments.js";
 import { authRoutes } from "./routes/auth.js";
@@ -38,7 +39,13 @@ app.get("/health", (c) =>
   c.json({
     ok: true,
     service: "warranted-api",
-    triage: aiEnabled ? "enabled" : "disabled (no ANTHROPIC_API_KEY)",
+    triage: aiEnabled
+      ? "enabled"
+      : "disabled (set GEMINI_API_KEY or ANTHROPIC_API_KEY)",
+    // Which model is answering, not merely whether one is. A proposal is only
+    // interpretable if you know what produced it.
+    provider: activeProvider(),
+    model: activeModel(),
   }),
 );
 

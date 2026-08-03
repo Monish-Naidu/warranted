@@ -21,7 +21,6 @@
  * "§3.0(b)".
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import {
   suggestedTermsSchema,
   suggestedTolerancesSchema,
@@ -29,16 +28,10 @@ import {
   type SuggestedTolerances,
 } from "@warranted/shared";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { env } from "../env.js";
+import { activeProvider, generateStructured } from "./provider.js";
 
 /** Bump when the prompt changes so proposals stay comparable over time. */
 export const CLAUSE_PROMPT_VERSION = "2026-08-03.1";
-
-const MODEL = "claude-opus-5";
-
-const client = env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
-  : null;
 
 const TERMS_JSON_SCHEMA = zodToJsonSchema(suggestedTermsSchema, {
   target: "jsonSchema7",
@@ -48,7 +41,7 @@ const TERMS_JSON_SCHEMA = zodToJsonSchema(suggestedTermsSchema, {
 export class ClauseExtractionUnavailableError extends Error {
   constructor(subject = "Clause extraction", byHand = "clauses") {
     super(
-      `${subject} needs ANTHROPIC_API_KEY. Add ${byHand} by hand until it is set.`,
+      `${subject} needs a model provider. Set GEMINI_API_KEY or ANTHROPIC_API_KEY. Add ${byHand} by hand until one is set.`,
     );
     this.name = "ClauseExtractionUnavailableError";
   }
@@ -81,63 +74,39 @@ export async function suggestClauses(
   documentText: string,
   documentTitle: string,
 ): Promise<ClauseExtractionResult> {
-  if (!client) throw new ClauseExtractionUnavailableError();
+  if (!activeProvider()) throw new ClauseExtractionUnavailableError();
 
   const startedAt = Date.now();
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
+  const response = await generateStructured({
     system: SYSTEM_PROMPT,
-    output_config: {
-      format: { type: "json_schema", schema: TERMS_JSON_SCHEMA },
-    },
-    messages: [
-      {
-        role: "user",
-        content: `Document title: ${documentTitle}
+    userText: `Document title: ${documentTitle}
 
 --- BEGIN WARRANTY DOCUMENT ---
 ${documentText}
 --- END WARRANTY DOCUMENT ---
 
 Break this into tagged clauses.`,
-      },
-    ],
+    schema: TERMS_JSON_SCHEMA,
+    maxTokens: 16000,
   });
 
   const latencyMs = Date.now() - startedAt;
 
-  if (response.stop_reason === "refusal") {
-    throw new Error(
-      `Clause extraction declined by safety classifier (${response.stop_details?.category ?? "unspecified"}).`,
-    );
-  }
-  if (response.stop_reason === "max_tokens") {
-    throw new Error(
-      "The response was truncated before the document finished. Try a shorter document, or add the remaining clauses by hand.",
-    );
-  }
-
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-
-  const parsed = suggestedTermsSchema.safeParse(JSON.parse(text));
+  const parsed = suggestedTermsSchema.safeParse(JSON.parse(response.text));
   if (!parsed.success) {
     throw new Error(`Clause extraction returned malformed terms: ${parsed.error.message}`);
   }
 
   return {
     terms: parsed.data.terms,
-    model: MODEL,
+    model: response.model,
     promptVersion: CLAUSE_PROMPT_VERSION,
     latencyMs,
   };
 }
 
-export const clauseExtractionEnabled = Boolean(client);
+export const clauseExtractionEnabled = activeProvider() !== null;
 
 
 // ---------------------------------------------------------------------------
@@ -176,7 +145,7 @@ export async function suggestTolerances(
   documentText: string,
   documentTitle: string,
 ): Promise<ToleranceExtractionResult> {
-  if (!client) {
+  if (!activeProvider()) {
     throw new ClauseExtractionUnavailableError(
       "Reading a performance standard",
       "thresholds",
@@ -185,53 +154,29 @@ export async function suggestTolerances(
 
   const startedAt = Date.now();
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
+  const response = await generateStructured({
     system: TOLERANCE_SYSTEM_PROMPT,
-    output_config: {
-      format: { type: "json_schema", schema: TOLERANCES_JSON_SCHEMA },
-    },
-    messages: [
-      {
-        role: "user",
-        content: `Document title: ${documentTitle}
+    userText: `Document title: ${documentTitle}
 
 --- BEGIN PERFORMANCE STANDARD ---
 ${documentText}
 --- END PERFORMANCE STANDARD ---
 
 Turn this into measurable thresholds.`,
-      },
-    ],
+    schema: TOLERANCES_JSON_SCHEMA,
+    maxTokens: 16000,
   });
 
   const latencyMs = Date.now() - startedAt;
 
-  if (response.stop_reason === "refusal") {
-    throw new Error(
-      `Extraction declined by safety classifier (${response.stop_details?.category ?? "unspecified"}).`,
-    );
-  }
-  if (response.stop_reason === "max_tokens") {
-    throw new Error(
-      "The response was truncated before the document finished. Try a shorter section, or add the remaining thresholds by hand.",
-    );
-  }
-
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-
-  const parsed = suggestedTolerancesSchema.safeParse(JSON.parse(text));
+  const parsed = suggestedTolerancesSchema.safeParse(JSON.parse(response.text));
   if (!parsed.success) {
     throw new Error(`Extraction returned malformed thresholds: ${parsed.error.message}`);
   }
 
   return {
     tolerances: parsed.data.tolerances,
-    model: MODEL,
+    model: response.model,
     promptVersion: CLAUSE_PROMPT_VERSION,
     latencyMs,
   };

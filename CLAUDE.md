@@ -135,6 +135,17 @@ prior owners keep read access to claims they filed — that matters after a resa
   under `tsx`, which handles them.
 - The workspace uses `node-linker=hoisted` (see `.npmrc`). React Native's Metro
   bundler cannot follow pnpm's symlinked store. Don't remove it.
+- **The model provider is swappable; the prompts are not.** `ai/provider.ts`
+  is the only file that knows whether Gemini or Anthropic is answering.
+  Gemini wins when both keys are set, because its free tier is what makes
+  development cost nothing. Prompts, response schemas, and the
+  proposes-vs-decides split live in `triage.ts` and `clauses.ts` and are
+  provider-agnostic on purpose — that separation is the point, so don't reach
+  for an SDK directly from a route.
+- **Gemini's `responseSchema` is a lossy subset of JSON Schema.**
+  `toGeminiSchema()` drops what it can't express rather than approximating it.
+  Every caller re-parses the response through its zod schema afterwards, and
+  *that* parse is the contract. Provider-side enforcement is a hint.
 - Zod is v3 across the repo. The Anthropic SDK's `zodOutputFormat` helper targets
   v4, so `triage.ts` emits JSON Schema via `zod-to-json-schema` and validates the
   response with the v3 schema. Migrating to v4 means moving

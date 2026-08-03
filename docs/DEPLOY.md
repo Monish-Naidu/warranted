@@ -51,7 +51,9 @@ Add these to the Vercel project (Settings → Environment Variables, or
 | `JWT_SECRET` | 32+ random chars — `openssl rand -base64 48` |
 | `DB_POOL_MAX` | `1` — see below |
 | `WEB_ORIGIN` | The deployment's own origin, e.g. `https://warranted.vercel.app` |
-| `ANTHROPIC_API_KEY` | Optional. Without it claims are accepted but arrive untriaged. |
+| `GEMINI_API_KEY` | A model provider. Free tier at https://aistudio.google.com/apikey. Takes priority when both are set. |
+| `ANTHROPIC_API_KEY` | The other provider, paid. Either one is enough; with neither, claims are accepted but arrive untriaged and document extraction falls back to manual entry. |
+| `NODEJS_HELPERS` | `0`, and not optional. See `api/index.ts` — without it every request carrying a body hangs. |
 
 `DB_POOL_MAX=1` matters. Each warm serverless instance builds its own `pg`
 pool, so the local default of 10 multiplies by the number of concurrent

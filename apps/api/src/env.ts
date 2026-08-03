@@ -23,7 +23,13 @@ const envSchema = z.object({
   /** Per-process Postgres pool size. Drop to 1 on serverless — see db/index.ts. */
   DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
-  /** Optional. Without it, claims are accepted but arrive untriaged. */
+  /*
+   * Model providers, both optional. Gemini wins when both are set, because
+   * its free tier is what makes running this cost nothing in development.
+   * With neither, claims are still accepted and simply arrive untriaged, and
+   * document extraction falls back to manual entry.
+   */
+  GEMINI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   UPLOAD_DIR: z.string().default("./uploads"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -52,4 +58,4 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
-export const aiEnabled = Boolean(env.ANTHROPIC_API_KEY);
+export const aiEnabled = Boolean(env.GEMINI_API_KEY || env.ANTHROPIC_API_KEY);
