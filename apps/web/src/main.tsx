@@ -4,6 +4,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import "./styles.css";
+import { applyTheme, resolveTheme } from "./theme";
+
+// Before React mounts, so there is no flash of the wrong palette.
+applyTheme(resolveTheme());
 
 const queryClient = new QueryClient({
   defaultOptions: {

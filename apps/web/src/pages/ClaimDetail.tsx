@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DETERMINATION_OUTCOMES, type DeterminationOutcome } from "@warranted/shared";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, type AiAssessmentRow, type ClaimDetail } from "../api";
+import { api, type AiAssessmentRow } from "../api";
+import { IconArrowLeft } from "../components/Icon";
+import { ErrorState, PageSkeleton } from "../components/States";
 
 const OUTCOME_LABELS: Record<DeterminationOutcome, string> = {
   covered: "Covered — we do the work",
@@ -15,11 +17,19 @@ const OUTCOME_LABELS: Record<DeterminationOutcome, string> = {
   goodwill: "Goodwill — not covered, doing it anyway",
 };
 
+const STATUS_CLASS: Record<string, string> = {
+  submitted: "info",
+  triaged: "accent",
+  approved: "ok",
+  scheduled: "ok",
+  denied: "critical",
+};
+
 export function ClaimDetailPage() {
   const { claimId } = useParams<{ claimId: string }>();
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["claim", claimId],
     queryFn: () => api.claim(claimId!),
     enabled: Boolean(claimId),
@@ -30,8 +40,16 @@ export function ClaimDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["claim", claimId] }),
   });
 
-  if (isLoading) return <div className="empty">Loading claim…</div>;
-  if (!data) return <div className="empty">Couldn't load that claim.</div>;
+  if (isLoading) return <PageSkeleton rows={4} />;
+  if (isError || !data) {
+    return (
+      <ErrorState
+        title="Couldn't load that claim"
+        error={error}
+        onRetry={() => refetch()}
+      />
+    );
+  }
 
   const { claim, photos, events, assessments, determinations, backcharges } = data;
   const latest = assessments[0] ?? null;
@@ -40,41 +58,51 @@ export function ClaimDetailPage() {
   return (
     <>
       <div className="page-head">
-        <Link to="/claims" className="muted" style={{ fontSize: 13 }}>
-          ← Claims
+        <Link to="/claims" className="breadcrumb">
+          <IconArrowLeft size={14} />
+          Claims
         </Link>
-        <h1 style={{ marginTop: 8 }}>
-          <span className="mono faint" style={{ fontSize: 16 }}>
-            {claim.reference}
-          </span>{" "}
-          {claim.title}
-        </h1>
-        <p>
-          {claim.room ? `${claim.room} · ` : ""}filed {claim.reportedOn} ·{" "}
-          <span className="badge">{claim.status.replace(/_/g, " ")}</span>
-        </p>
+        <h1>{claim.title}</h1>
+        <div
+          className="row"
+          style={{ marginTop: "var(--space-2)", gap: "var(--space-2)" }}
+        >
+          <span className="badge mono">{claim.reference}</span>
+          <span className={`badge ${STATUS_CLASS[claim.status] ?? ""}`}>
+            {claim.status.replace(/_/g, " ")}
+          </span>
+          <span className="muted" style={{ fontSize: "var(--text-sm)" }}>
+            {claim.room ? `${claim.room} · ` : ""}filed {claim.reportedOn}
+          </span>
+        </div>
       </div>
 
       <section className="section">
         <h2 className="section-title">What the homeowner reported</h2>
-        <div className="card" style={{ whiteSpace: "pre-wrap" }}>
+        <div className="card card-pad-lg" style={{ whiteSpace: "pre-wrap" }}>
           {claim.description}
         </div>
       </section>
 
       {photos.length > 0 && (
         <section className="section">
-          <h2 className="section-title">Photos</h2>
+          <div className="section-head">
+            <h2 className="section-title">Photos</h2>
+            <span className="faint" style={{ fontSize: "var(--text-xs)" }}>
+              {photos.length} on file
+            </span>
+          </div>
           <div className="photo-grid">
             {photos.map((photo) => (
-              <div key={photo.id}>
+              <figure key={photo.id} style={{ margin: 0 }}>
                 <img src={photo.fileUrl} alt="" loading="lazy" />
-                <div className="photo-meta">
+                <figcaption className="photo-meta">
                   {photo.exifTakenAt
                     ? `Taken ${new Date(photo.exifTakenAt).toLocaleString()}`
                     : "No EXIF timestamp"}
                   {/* Geo verification kills the "that photo isn't of this house"
-                      dispute before it starts. */}
+                      dispute before it starts. A null geotag is "not
+                      checkable" and is deliberately not shown as a failure. */}
                   {photo.geoVerified === true && (
                     <>
                       {" · "}
@@ -91,8 +119,8 @@ export function ClaimDetailPage() {
                       </span>
                     </>
                   )}
-                </div>
-              </div>
+                </figcaption>
+              </figure>
             ))}
           </div>
         </section>
@@ -103,8 +131,8 @@ export function ClaimDetailPage() {
         {latest ? (
           <AssessmentCard assessment={latest} />
         ) : (
-          <div className="card">
-            <p className="muted" style={{ marginTop: 0 }}>
+          <div className="card card-pad-lg">
+            <p className="muted">
               This claim hasn't been triaged yet. Triage reads the photos
               against your warranty document and the performance tolerance
               table, then proposes a determination with citations.
@@ -117,7 +145,10 @@ export function ClaimDetailPage() {
               {triage.isPending ? "Analyzing…" : "Run triage"}
             </button>
             {triage.isError && (
-              <div className="error-note" style={{ marginTop: 12, marginBottom: 0 }}>
+              <div
+                className="error-note"
+                style={{ marginTop: "var(--space-3)", marginBottom: 0 }}
+              >
                 {(triage.error as Error).message}
               </div>
             )}
@@ -128,25 +159,26 @@ export function ClaimDetailPage() {
       <section className="section">
         <h2 className="section-title">Determination</h2>
         {decided ? (
-          <div className="card">
+          <div className="card card-pad-lg stack">
             {determinations.map((d) => (
               <div key={d.id}>
-                <span className="badge ok">
+                <span className="badge ok" style={{ marginBottom: "var(--space-2)" }}>
                   {OUTCOME_LABELS[d.outcome as DeterminationOutcome] ?? d.outcome}
                 </span>
-                <p style={{ marginBottom: 4 }}>{d.reason}</p>
-                <div className="faint" style={{ fontSize: 12 }}>
+                <p style={{ marginTop: "var(--space-2)" }}>{d.reason}</p>
+                <div className="faint" style={{ fontSize: "var(--text-xs)" }}>
                   {new Date(d.createdAt).toLocaleString()}
                   {d.agreedWithAi === true && " · agreed with triage"}
                   {d.agreedWithAi === false && " · overrode triage"}
                 </div>
               </div>
             ))}
+
             {backcharges.map((b) => (
               <div
                 key={b.id}
                 className="card"
-                style={{ marginTop: 12, background: "var(--surface-2)" }}
+                style={{ background: "var(--surface-inset)", boxShadow: "none" }}
               >
                 <span
                   className={`badge ${
@@ -159,7 +191,9 @@ export function ClaimDetailPage() {
                 >
                   backcharge: {b.status.replace(/_/g, " ")}
                 </span>
-                <p style={{ marginBottom: 0 }}>{b.rationale}</p>
+                <p style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>
+                  {b.rationale}
+                </p>
               </div>
             ))}
           </div>
@@ -170,19 +204,21 @@ export function ClaimDetailPage() {
 
       <section className="section">
         <h2 className="section-title">History</h2>
-        <div className="card">
-          {events.map((event) => (
-            <div key={event.id} className="timeline-item">
-              <span className="badge">{event.kind.replace(/_/g, " ")}</span>
-              <div style={{ flex: 1 }}>
-                {event.note && <div>{event.note}</div>}
-                <div className="faint" style={{ fontSize: 12 }}>
-                  {new Date(event.createdAt).toLocaleString()}
-                  {event.toStatus && ` · → ${event.toStatus.replace(/_/g, " ")}`}
+        <div className="card card-pad-lg">
+          <div className="timeline">
+            {events.map((event) => (
+              <div key={event.id} className="timeline-item">
+                <span className="badge">{event.kind.replace(/_/g, " ")}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {event.note && <div>{event.note}</div>}
+                  <div className="faint" style={{ fontSize: "var(--text-xs)" }}>
+                    {new Date(event.createdAt).toLocaleString()}
+                    {event.toStatus && ` · → ${event.toStatus.replace(/_/g, " ")}`}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
     </>
@@ -194,55 +230,63 @@ function AssessmentCard({ assessment: a }: { assessment: AiAssessmentRow }) {
     <div className="ai-card">
       <div className="ai-head">
         <span className="badge info">Triage proposal</span>
-        {a.isEmergency && <span className="badge critical">emergency</span>}
-        <span className="badge" style={{ textTransform: "capitalize" }}>
-          {a.trade.replace(/_/g, " ")}
-        </span>
+        {a.isEmergency && (
+          <span className="badge critical">
+            <span className="dot" aria-hidden />
+            emergency
+          </span>
+        )}
+        <span className="badge cap">{a.trade.replace(/_/g, " ")}</span>
         <span className="badge">{a.tier}</span>
         <span className="badge">{a.severity}</span>
         <span className="badge mono">{Math.round(a.confidence * 100)}% confidence</span>
         {a.needsHumanReview && (
           <span className="badge warning">needs a closer look</span>
         )}
-        <span className="faint" style={{ marginLeft: "auto", fontSize: 12 }}>
+        <span
+          className="faint"
+          style={{ marginLeft: "auto", fontSize: "var(--text-xs)" }}
+        >
           {a.model}
         </span>
       </div>
 
       <div className="ai-body">
-        <p style={{ marginTop: 0 }}>{a.summary}</p>
+        <p className="ai-lede">{a.summary}</p>
 
-        <div className="section" style={{ marginBottom: 16 }}>
-          <h3 className="section-title">Observed</h3>
-          <p style={{ margin: 0 }} className="muted">
-            {a.observedCondition}
-          </p>
+        <div className="ai-block">
+          <h3 className="ai-block-title">Observed</h3>
+          <p className="muted">{a.observedCondition}</p>
         </div>
 
         {a.toleranceCheck?.applies && (
-          <div className="section" style={{ marginBottom: 16 }}>
-            <h3 className="section-title">Tolerance check</h3>
+          <div className="ai-block">
+            <h3 className="ai-block-title">Tolerance check</h3>
             <div className="muted">
               {a.toleranceCheck.standard} — defect when {a.toleranceCheck.threshold}.
               {a.toleranceCheck.estimatedMeasurement
                 ? ` Estimated: ${a.toleranceCheck.estimatedMeasurement}.`
                 : " No scale reference in the photos, so no measurement was estimated."}{" "}
               {a.toleranceCheck.withinTolerance === true && (
-                <strong>Within tolerance — not a defect.</strong>
+                <strong style={{ color: "var(--ok)" }}>
+                  Within tolerance — not a defect.
+                </strong>
               )}
               {a.toleranceCheck.withinTolerance === false && (
-                <strong>Exceeds tolerance.</strong>
+                <strong style={{ color: "var(--critical)" }}>
+                  Exceeds tolerance.
+                </strong>
               )}
             </div>
           </div>
         )}
 
         {a.citations.length > 0 && (
-          <div className="section" style={{ marginBottom: 16 }}>
-            <h3 className="section-title">Cited</h3>
+          <div className="ai-block">
+            <h3 className="ai-block-title">Cited</h3>
             {a.citations.map((citation, i) => (
               <div className="citation" key={i}>
-                <div className="mono faint">
+                <div className="citation-source">
                   {citation.source.replace(/_/g, " ")} · {citation.reference}
                 </div>
                 <q>{citation.quote}</q>
@@ -252,9 +296,9 @@ function AssessmentCard({ assessment: a }: { assessment: AiAssessmentRow }) {
         )}
 
         {a.possibleDuplicateOfClaimIds.length > 0 && (
-          <div className="alert warning" style={{ marginBottom: 16 }}>
+          <div className="alert warning" style={{ marginBottom: "var(--space-5)" }}>
             <div className="alert-bar" aria-hidden />
-            <div className="alert-body">
+            <div className="alert-body alert-text">
               Possibly a repeat of {a.possibleDuplicateOfClaimIds.length} earlier
               claim(s) on this home. A repeat visit for unresolved work is
               charged differently than a new claim.
@@ -262,15 +306,15 @@ function AssessmentCard({ assessment: a }: { assessment: AiAssessmentRow }) {
           </div>
         )}
 
-        <div className="section" style={{ marginBottom: 0 }}>
-          <h3 className="section-title">Recommends</h3>
-          <div>
-            <span className="badge">
-              {OUTCOME_LABELS[a.proposedOutcome as DeterminationOutcome] ??
-                a.proposedOutcome}
-            </span>
-            <p style={{ marginBottom: 0 }}>{a.recommendedNextStep}</p>
-          </div>
+        <div className="ai-block">
+          <h3 className="ai-block-title">Recommends</h3>
+          <span className="badge accent">
+            {OUTCOME_LABELS[a.proposedOutcome as DeterminationOutcome] ??
+              a.proposedOutcome}
+          </span>
+          <p style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>
+            {a.recommendedNextStep}
+          </p>
         </div>
       </div>
     </div>
@@ -308,14 +352,19 @@ function DeterminationForm({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["claim", claimId] }),
   });
 
+  const overriding =
+    assessment !== null && outcome !== assessment.proposedOutcome;
+
   return (
-    <div className="card">
+    <div className="card card-pad-lg">
       {assessment && (
-        <p className="muted" style={{ marginTop: 0 }}>
+        <p className="muted">
           Triage proposed{" "}
-          <strong>{OUTCOME_LABELS[assessment.proposedOutcome as DeterminationOutcome]}</strong>.
-          Accept it or change it — either way your decision is what counts, and
-          the difference is recorded.
+          <strong>
+            {OUTCOME_LABELS[assessment.proposedOutcome as DeterminationOutcome]}
+          </strong>
+          . Accept it or change it — either way your decision is what counts,
+          and the difference is recorded.
         </p>
       )}
 
@@ -332,13 +381,16 @@ function DeterminationForm({
             </option>
           ))}
         </select>
+        {overriding && (
+          <div className="field-hint" style={{ color: "var(--warning)" }}>
+            This overrides the triage proposal. The override is recorded against
+            it.
+          </div>
+        )}
       </div>
 
       <div className="field">
-        <label htmlFor="reason">
-          Reason — this is what the homeowner and, if it ever comes to it, their
-          attorney will read
-        </label>
+        <label htmlFor="reason">Reason</label>
         <textarea
           id="reason"
           rows={4}
@@ -346,6 +398,10 @@ function DeterminationForm({
           onChange={(e) => setReason(e.target.value)}
           required
         />
+        <div className="field-hint">
+          This is what the homeowner and, if it ever comes to it, their attorney
+          will read.
+        </div>
       </div>
 
       <div className="field">
@@ -357,6 +413,7 @@ function DeterminationForm({
           step="0.01"
           value={cost}
           onChange={(e) => setCost(e.target.value)}
+          style={{ maxWidth: 200 }}
         />
       </div>
 
@@ -369,7 +426,10 @@ function DeterminationForm({
       </button>
 
       {submit.isError && (
-        <div className="error-note" style={{ marginTop: 12, marginBottom: 0 }}>
+        <div
+          className="error-note"
+          style={{ marginTop: "var(--space-3)", marginBottom: 0 }}
+        >
           {(submit.error as Error).message}
         </div>
       )}

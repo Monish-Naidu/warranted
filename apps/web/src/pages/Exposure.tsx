@@ -1,17 +1,137 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ExposureWindow, type Lot } from "../api";
+import { IconCheck } from "../components/Icon";
+import { EmptyState, ErrorState, PageSkeleton } from "../components/States";
 
 export function ExposurePage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["exposure"],
     queryFn: api.exposure,
   });
 
-  if (isLoading) return <div className="empty">Loading exposure…</div>;
-  if (!data) return <div className="empty">Couldn't load exposure.</div>;
+  if (isLoading) return <ExposureHead skeleton />;
+  if (isError || !data) {
+    return (
+      <>
+        <ExposureHead />
+        <ErrorState
+          title="Couldn't load exposure"
+          error={error}
+          onRetry={() => refetch()}
+        />
+      </>
+    );
+  }
 
   const { alerts, lots, summary } = data;
 
+  return (
+    <>
+      <ExposureHead />
+
+      <div className="stat-row">
+        <Stat
+          value={summary.criticalAlerts}
+          label="Critical alerts"
+          tone={summary.criticalAlerts > 0 ? "critical" : undefined}
+        />
+        <Stat
+          value={summary.warningAlerts}
+          label="Warnings"
+          tone={summary.warningAlerts > 0 ? "warning" : undefined}
+        />
+        <Stat
+          value={summary.undocumentedAssignments}
+          label="Trades with no completion date"
+          tone={summary.undocumentedAssignments > 0 ? "critical" : undefined}
+        />
+        <Stat
+          value={summary.lotsWithUnscheduledElevenMonth}
+          label="11-month reviews due, unscheduled"
+          tone={
+            summary.lotsWithUnscheduledElevenMonth > 0 ? "warning" : undefined
+          }
+        />
+        <Stat value={summary.lots} label="Homes under warranty" />
+      </div>
+
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">Alerts</h2>
+          {alerts.length > 0 && (
+            <span className="faint" style={{ fontSize: "var(--text-xs)" }}>
+              {alerts.length} open
+            </span>
+          )}
+        </div>
+
+        {alerts.length === 0 ? (
+          <EmptyState
+            title="No exposure alerts"
+            icon={<IconCheck size={20} />}
+          >
+            Every trade is either back-to-back with your warranty or already
+            closed out.
+          </EmptyState>
+        ) : (
+          alerts.map((alert) => (
+            <div
+              key={`${alert.assignmentId}-${alert.trade}`}
+              className={`alert ${alert.severity}`}
+            >
+              <div className="alert-bar" aria-hidden />
+              <div className="alert-body">
+                <div className="alert-meta">
+                  <span className={`badge ${alert.severity}`}>
+                    <span className="dot" aria-hidden />
+                    {alert.severity}
+                  </span>
+                  <span className="cap">{alert.trade.replace(/_/g, " ")}</span>
+                  <span className="faint" aria-hidden>
+                    ·
+                  </span>
+                  <span>{alert.subcontractorName}</span>
+                  {alert.daysUntilSubExpiry !== null && (
+                    <>
+                      <span className="faint" aria-hidden>
+                        ·
+                      </span>
+                      <span>
+                        {alert.daysUntilSubExpiry < 0
+                          ? `sub warranty closed ${Math.abs(alert.daysUntilSubExpiry)}d ago`
+                          : `${alert.daysUntilSubExpiry}d left on sub warranty`}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="alert-text">{alert.message}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">By lot</h2>
+          <ClockLegend />
+        </div>
+
+        {lots.length === 0 ? (
+          <EmptyState title="No homes under warranty">
+            Homes appear here once they have a warranty start date on record.
+          </EmptyState>
+        ) : (
+          [...lots]
+            .sort(riskFirst)
+            .map((lot) => <LotCard key={lot.homeId} lot={lot} />)
+        )}
+      </section>
+    </>
+  );
+}
+
+function ExposureHead({ skeleton }: { skeleton?: boolean }) {
   return (
     <>
       <div className="page-head">
@@ -23,74 +143,66 @@ export function ExposurePage() {
           you still owe the homeowner but can no longer charge back.
         </p>
       </div>
-
-      <div className="stat-row">
-        <div className={`stat ${summary.criticalAlerts > 0 ? "is-critical" : ""}`}>
-          <div className="stat-value">{summary.criticalAlerts}</div>
-          <div className="stat-label">Critical alerts</div>
-        </div>
-        <div className={`stat ${summary.warningAlerts > 0 ? "is-warning" : ""}`}>
-          <div className="stat-value">{summary.warningAlerts}</div>
-          <div className="stat-label">Warnings</div>
-        </div>
-        <div className={`stat ${summary.undocumentedAssignments > 0 ? "is-critical" : ""}`}>
-          <div className="stat-value">{summary.undocumentedAssignments}</div>
-          <div className="stat-label">Trades with no completion date</div>
-        </div>
-        <div className="stat">
-          <div className="stat-value">{summary.lotsWithUnscheduledElevenMonth}</div>
-          <div className="stat-label">11-month reviews due, unscheduled</div>
-        </div>
-        <div className="stat">
-          <div className="stat-value">{summary.lots}</div>
-          <div className="stat-label">Homes under warranty</div>
-        </div>
-      </div>
-
-      <section className="section">
-        <h2 className="section-title">Alerts</h2>
-        {alerts.length === 0 ? (
-          <div className="card empty">
-            No exposure alerts. Every trade is either back-to-back with your
-            warranty or already closed out.
-          </div>
-        ) : (
-          alerts.map((alert) => (
-            <div
-              key={`${alert.assignmentId}-${alert.trade}`}
-              className={`alert ${alert.severity}`}
-            >
-              <div className="alert-bar" aria-hidden />
-              <div className="alert-body">
-                <div className="alert-meta">
-                  <span className={`badge ${alert.severity}`}>
-                    {alert.severity}
-                  </span>
-                  <span style={{ textTransform: "capitalize" }}>{alert.trade}</span>
-                  <span className="faint">·</span>
-                  <span>{alert.subcontractorName}</span>
-                  {alert.daysUntilSubExpiry !== null && (
-                    <>
-                      <span className="faint">·</span>
-                      <span>{alert.daysUntilSubExpiry}d left on sub warranty</span>
-                    </>
-                  )}
-                </div>
-                {alert.message}
-              </div>
-            </div>
-          ))
-        )}
-      </section>
-
-      <section className="section">
-        <h2 className="section-title">By lot</h2>
-        {lots.map((lot) => (
-          <LotCard key={lot.homeId} lot={lot} />
-        ))}
-      </section>
+      {skeleton && <PageSkeleton stats={5} rows={3} />}
     </>
   );
+}
+
+function Stat({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone?: "critical" | "warning";
+}) {
+  return (
+    <div className={`stat ${tone ? `is-${tone}` : ""}`}>
+      <div className="stat-value">{value}</div>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
+function ClockLegend() {
+  return (
+    <div className="clock-legend">
+      <span className="clock-legend-item">
+        <span className="legend-swatch covered" aria-hidden />
+        Sub covers
+      </span>
+      <span className="clock-legend-item">
+        <span className="legend-swatch exposed" aria-hidden />
+        You carry alone
+      </span>
+      <span className="clock-legend-item">
+        <span className="legend-swatch unknown" aria-hidden />
+        Undocumented
+      </span>
+      <span className="clock-legend-item">
+        <span className="legend-swatch today" aria-hidden />
+        Today
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Worst first. A lot with an undocumented trade outranks everything — that is
+ * the bus-factor failure, and no amount of exposure elsewhere is as
+ * unrecoverable. After that, raw exposure days, then an overdue 11-month.
+ */
+function riskFirst(a: Lot, b: Lot): number {
+  if (a.undocumentedTrades !== b.undocumentedTrades) {
+    return b.undocumentedTrades - a.undocumentedTrades;
+  }
+  if (a.totalExposureDays !== b.totalExposureDays) {
+    return b.totalExposureDays - a.totalExposureDays;
+  }
+  const aDue = a.elevenMonth.daysUntilDue ?? Number.POSITIVE_INFINITY;
+  const bDue = b.elevenMonth.daysUntilDue ?? Number.POSITIVE_INFINITY;
+  return aDue - bDue;
 }
 
 function LotCard({ lot }: { lot: Lot }) {
@@ -121,35 +233,34 @@ function LotCard({ lot }: { lot: Lot }) {
       : { cls: "", text: `11-month review in ${dueIn ?? "—"}d` };
 
   return (
-    <div className="card" style={{ marginBottom: 12 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 16,
-          alignItems: "flex-start",
-          marginBottom: 14,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div style={{ fontWeight: 600, fontSize: 15 }}>
+    <article
+      className={`lot-card ${lot.undocumentedTrades > 0 ? "has-critical" : ""}`}
+    >
+      <header className="lot-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="lot-title">
             Lot {lot.lotNumber} — {lot.address}
           </div>
-          <div className="muted" style={{ fontSize: 13 }}>
+          <div className="lot-meta">
             {lot.community}
             {lot.plan ? ` · ${lot.plan}` : ""} · warranty started{" "}
-            {lot.warrantyStartDate}
+            <span className="mono">{lot.warrantyStartDate}</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="lot-actions">
+          {lot.undocumentedTrades > 0 && (
+            <span className="badge critical">
+              <span className="dot" aria-hidden />
+              {lot.undocumentedTrades} undocumented
+            </span>
+          )}
           <span className={`badge ${elevenMonthBadge.cls}`}>
             {elevenMonthBadge.text}
           </span>
           {!lot.elevenMonth.scheduled && (
             <button
-              className="btn primary"
+              className="btn primary sm"
               onClick={() => schedule.mutate()}
               disabled={schedule.isPending}
             >
@@ -157,83 +268,129 @@ function LotCard({ lot }: { lot: Lot }) {
             </button>
           )}
         </div>
-      </div>
+      </header>
 
-      {lot.exposure.length === 0 ? (
-        <div className="muted">No subcontractor assignments recorded.</div>
-      ) : (
-        lot.exposure.map((window) => (
-          <ClockBar key={window.assignmentId} window={window} />
-        ))
-      )}
-    </div>
+      <div className="lot-body">
+        {lot.exposure.length === 0 ? (
+          <p className="muted" style={{ padding: "var(--space-3) 0" }}>
+            No subcontractor assignments recorded.
+          </p>
+        ) : (
+          <div className="clock-list">
+            {[...lot.exposure]
+              // Undocumented first, then longest tail — same logic as the lot
+              // sort, applied within the card.
+              .sort(
+                (a, b) =>
+                  Number(b.unknown) - Number(a.unknown) ||
+                  b.exposureDays - a.exposureDays,
+              )
+              .map((window) => (
+                <ClockBar
+                  key={window.assignmentId}
+                  window={window}
+                  warrantyStart={lot.warrantyStartDate}
+                />
+              ))}
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 
 /**
  * One trade's two clocks on a single track.
  *
- * The track spans the builder's obligation. The green segment is how much of
- * it the subcontractor's warranty actually covers; the hatched red tail is
- * what the builder carries alone.
+ * The track spans the builder's whole obligation for this trade — warranty
+ * start through the end of the tier that covers it. The solid segment is the
+ * part the subcontractor's own warranty still backs; the hatched tail is what
+ * the builder carries alone.
+ *
+ * The denominator is the *full builder window*, not the exposed span. Using
+ * the exposed span made every bar render 100% red, which is how the previous
+ * version managed to draw a 30-day tail and a 272-day tail identically.
  */
-function ClockBar({ window: w }: { window: ExposureWindow }) {
-  const totalDays = Math.max(
-    1,
-    daysBetween(w.exposureStart ?? w.builderCoverageEnd, w.builderCoverageEnd) +
-      (w.exposureDays > 0 ? 0 : 1),
-  );
+function ClockBar({
+  window: w,
+  warrantyStart,
+}: {
+  window: ExposureWindow;
+  warrantyStart: string;
+}) {
+  const totalDays = Math.max(1, daysBetween(warrantyStart, w.builderCoverageEnd));
+  const exposedDays = Math.min(Math.max(w.exposureDays, 0), totalDays);
+  const exposedPct = (exposedDays / totalDays) * 100;
+  const coveredPct = 100 - exposedPct;
 
-  // Proportion of the builder window that the sub still covers.
-  const coveredPct = w.unknown
-    ? 0
-    : Math.max(
-        0,
-        Math.min(100, 100 - (w.exposureDays / Math.max(totalDays, w.exposureDays)) * 100),
-      );
+  // Where "now" falls in the window. Off-track values are simply not drawn.
+  const elapsed = daysBetween(warrantyStart, todayIso());
+  const todayPct = (elapsed / totalDays) * 100;
+  const showToday = todayPct >= 0 && todayPct <= 100;
+
+  const label = w.unknown
+    ? `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: no completion date on record. The entire ${totalDays}-day builder window is unrecoverable.`
+    : exposedDays > 0
+      ? `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: sub warranty ends ${w.subCoverageEnd}, your obligation runs to ${w.builderCoverageEnd}. ${exposedDays} of ${totalDays} days exposed.`
+      : `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: covered back-to-back through ${w.builderCoverageEnd}.`;
 
   return (
     <div className="clock">
       <div className="clock-trade">
-        {w.trade.replace(/_/g, " ")}
-        <div className="faint" style={{ fontSize: 11 }}>
-          {w.subcontractorName}
-        </div>
+        <div className="clock-trade-name">{w.trade.replace(/_/g, " ")}</div>
+        <div className="clock-sub">{w.subcontractorName}</div>
       </div>
 
-      <div
-        className="clock-track"
-        title={
-          w.unknown
-            ? "No completion date on record — no provable backcharge window."
-            : `Sub warranty ends ${w.subCoverageEnd}; your obligation runs to ${w.builderCoverageEnd}.`
-        }
-      >
+      <div className="clock-track" role="img" aria-label={label} title={label}>
         {w.unknown ? (
           <div className="clock-unknown" />
         ) : (
           <>
             <div className="clock-covered" style={{ width: `${coveredPct}%` }} />
-            {w.exposureDays > 0 && (
-              <div className="clock-exposed" style={{ width: `${100 - coveredPct}%` }} />
+            {exposedDays > 0 && (
+              <div className="clock-exposed" style={{ width: `${exposedPct}%` }} />
             )}
           </>
         )}
+        {showToday && (
+          <div className="clock-today" style={{ left: `${todayPct}%` }} />
+        )}
       </div>
 
-      <div className={`clock-days ${w.exposureDays > 0 ? "exposed" : ""}`}>
-        {w.unknown
-          ? "undocumented"
-          : w.exposureDays > 0
-            ? `${w.exposureDays}d exposed`
-            : "covered"}
+      <div>
+        <div
+          className={`clock-days ${
+            w.unknown ? "unknown" : exposedDays > 0 ? "exposed" : "covered"
+          }`}
+        >
+          {w.unknown
+            ? "undocumented"
+            : exposedDays > 0
+              ? `${exposedDays}d exposed`
+              : "covered"}
+        </div>
+        <div
+          className="faint"
+          style={{
+            fontSize: "var(--text-2xs)",
+            textAlign: "right",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          of {totalDays}d
+        </div>
       </div>
     </div>
   );
 }
 
+/** UTC-noon anchored, matching `packages/warranty/src/dates.ts`. */
 function daysBetween(from: string, to: string): number {
   const a = new Date(`${from}T12:00:00Z`).getTime();
   const b = new Date(`${to}T12:00:00Z`).getTime();
   return Math.round((b - a) / 86_400_000);
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
