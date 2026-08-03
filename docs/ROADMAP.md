@@ -133,22 +133,23 @@ tables only through `pnpm db:seed`.
 | Missing endpoint | Schema that exists | Blocks |
 | --- | --- | --- |
 | Create / update homes | `createHomeSchema` | Onboarding a real builder |
-| Create sub assignments | `createSubAssignmentSchema` | **Recording the completion date the entire exposure calculation depends on** |
+| ~~Create sub assignments~~ | `createSubAssignmentSchema` | **Built** — see below |
 | Create appointments | `scheduleAppointmentSchema` | All scheduling |
 | Subcontractor CRUD | — | Onboarding |
 | Community / plan CRUD | — | Onboarding |
 
-The second row is the one that matters. The product's core claim is that it
-surfaces exposure from `sub_assignments.completed_at`, and there is currently no
-way to write that field outside the seed script.
+The second row was the one that mattered, and it has since been closed:
+`POST /api/builder/homes/:homeId/assignments` and
+`PATCH /api/builder/assignments/:assignmentId` now write and backfill
+`completed_at`, both scoped to the caller's builder, with
+`GET /api/builder/subcontractors` for the picker. The remaining rows still block
+onboarding a real builder without the seed script.
 
 ### Other gaps in what exists
 
-- **Claim status transitions are unguarded.** `POST /api/claims/:id/status`
-  accepts any `CLAIM_STATUS` from any builder staff member. The state diagram in
-  [`ARCHITECTURE.md`](./ARCHITECTURE.md) describes intent, not enforcement. Every
-  transition is audited in `claim_events`, so the history is intact — but
-  `verified → submitted` is currently legal.
+- **No UI for recording completion dates.** The API accepts them; neither the
+  portal nor the app exposes a form. Until it does, closing an undocumented-trade
+  alert still means a manual API call.
 - **No tests outside the rules engine.** `apps/api` declares a `test` script and
   has vitest installed; there are no test files. Nothing covers auth, tenant
   isolation, the geo-verification math, or the exposure endpoint's assembly.
@@ -156,9 +157,12 @@ way to write that field outside the seed script.
 - **Right-to-cure columns are unwritten.** `statutory_notice_sent_at`,
   `statutory_response_due_at`, and `responded_at` exist on `claims` and nothing
   sets them.
-- **`GET /api/claims` filters status with an unchecked cast**
-  (`status as "submitted"`), so an invalid status string reaches Postgres as an
-  enum comparison.
+- ~~`GET /api/claims` filters status with an unchecked cast~~ — fixed; the
+  param is validated against `CLAIM_STATUSES` and ignored when unrecognised.
+- ~~Claim status transitions are unguarded~~ — partially fixed. A claim in a
+  terminal state (`verified`, `denied`, `referred`, `withdrawn`) can no longer be
+  reopened, which protects the timeline a right-to-cure defense rests on.
+  Forward transitions are still unordered: `submitted → completed` is legal.
 - **Refresh tokens / session revocation** — login issues a JWT and there is no
   way to invalidate it before expiry.
 - **No rate limiting** on login or photo upload.
