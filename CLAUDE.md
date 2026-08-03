@@ -22,6 +22,27 @@ requirement.
 
 Demo logins are printed by `pnpm db:seed`. Password: `warranted-demo-2026`.
 
+## Deploy it
+
+`docs/DEPLOY.md` is the full account. The two things worth knowing before you
+touch anything under `api/` or `vercel.json`:
+
+- **The API is pre-bundled for Vercel, on purpose.** `api/index.ts` imports
+  `apps/api/dist/app.bundle.js`, not `apps/api/src/app.ts`. Vercel compiles
+  workspace `.ts` to `.js` but copies each package.json verbatim, so
+  `@warranted/shared`'s `exports` still point at a `./src/index.ts` that isn't
+  in the deployment. `scripts/build-api-bundle.mjs` inlines the two
+  `@warranted/*` packages and leaves every npm dep external. Don't "simplify"
+  it into a direct source import.
+- **`apps/api/src/app.ts` holds the app; `index.ts` holds the Node server.**
+  Anything needing a long-lived process or a writable disk — the `/uploads`
+  static mount, for one — belongs in `index.ts`, which the serverless
+  deployment never loads.
+
+`DB_POOL_MAX=1` on serverless. Each warm instance gets its own `pg` pool, so
+the local default of 10 multiplies across instances and exhausts the database's
+connection limit.
+
 ## The one thing to understand
 
 The product's core object is **not "the warranty."** It is **two clocks per

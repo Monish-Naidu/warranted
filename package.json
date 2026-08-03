@@ -23,7 +23,11 @@
     "db:local": "pnpm --filter @warranted/api db:local",
     "test": "pnpm -r test"
   },
+  "dependencies": {
+    "hono": "^4.6.16"
+  },
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "typescript": "^5.7.3"
   }
 }

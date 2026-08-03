@@ -9,6 +9,8 @@ const envSchema = z.object({
     .string()
     .min(32, "JWT_SECRET must be at least 32 chars — run: openssl rand -base64 48"),
   PORT: z.coerce.number().int().positive().default(3001),
+  /** Per-process Postgres pool size. Drop to 1 on serverless — see db/index.ts. */
+  DB_POOL_MAX: z.coerce.number().int().positive().default(10),
   WEB_ORIGIN: z.string().default("http://localhost:5173"),
   /** Optional. Without it, claims are accepted but arrive untriaged. */
   ANTHROPIC_API_KEY: z.string().optional(),

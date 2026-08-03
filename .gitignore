@@ -26,3 +26,8 @@ apps/mobile/android/
 # claude local overrides
 .claude/settings.local.json
 .postgres/
+
+# vercel cli local state (added by `vercel link`). Deliberately not the
+# broader `.env*` the CLI appends — that would re-ignore .env.example, which
+# is tracked on purpose.
+.vercel/
