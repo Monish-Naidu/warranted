@@ -13,9 +13,9 @@ export function PatternsPage() {
       <div className="page-head">
         <h1>Plan patterns</h1>
         <p>
-          Plans repeat, so defects repeat with them. A trade failing on several
-          homes of the same plan is a design or installation problem, not a run
-          of bad luck — and it should surface at home six, not home thirty.
+          Plans repeat, so defects repeat with them. A trade failing on
+          several homes of one plan is a design or installation problem, not a
+          run of bad luck. It should surface at home six, not home thirty.
         </p>
       </div>
 
@@ -77,7 +77,7 @@ export function PatternsPage() {
                         }`}
                       >
                         {p.incidenceRate === null
-                          ? "—"
+                          ? "–"
                           : `${Math.round(p.incidenceRate * 100)}%`}
                       </span>
                     </td>

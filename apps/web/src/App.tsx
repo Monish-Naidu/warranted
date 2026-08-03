@@ -84,10 +84,10 @@ function Shell({ user }: { user: SessionUser }) {
       </a>
 
       <nav className="sidebar" aria-label="Primary">
-        <div className="brand">
+        <NavLink to="/exposure" className="brand" aria-label="Warranted, go to Exposure">
           <span className="brand-mark" aria-hidden />
           Warranted
-        </div>
+        </NavLink>
 
         <button
           type="button"

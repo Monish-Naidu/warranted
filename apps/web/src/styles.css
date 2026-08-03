@@ -285,6 +285,12 @@ p:last-child {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-sm);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+a.brand:hover {
+  opacity: 0.75;
 }
 
 /*
@@ -862,6 +868,28 @@ tbody tr.clickable:focus-visible {
   background: var(--text);
 }
 
+/* The boundary between the two clocks. Arguably the most important mark on
+   the chart, and it was missing from the legend entirely. */
+.legend-swatch.boundary {
+  width: 2px;
+  height: 12px;
+  border: none;
+  border-radius: 0;
+  background: var(--ok);
+}
+
+/* Sticky, because with ten lots on screen the legend scrolls out of view
+   exactly when the reader starts needing it. */
+.legend-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: var(--space-2) 0 var(--space-3);
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+}
+
 .clock-list {
   display: flex;
   flex-direction: column;
@@ -872,11 +900,48 @@ tbody tr.clickable:focus-visible {
   grid-template-columns: 148px minmax(0, 1fr) 104px;
   gap: var(--space-3);
   align-items: center;
-  padding: var(--space-2) 0;
+  padding: var(--space-3) 0;
 }
 
 .clock + .clock {
   border-top: 1px solid var(--border);
+}
+
+.clock-plot {
+  min-width: 0;
+}
+
+/* The dates the bar is drawn from. Rows on one lot are scaled to different
+   tier lengths, so without these there is no way to see that a 1-year and a
+   2-year track are both full width. */
+.clock-axis {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--space-1);
+  min-height: 14px;
+}
+
+.clock-axis-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.clock-figure {
+  text-align: right;
+}
+
+.clock-window {
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
 }
 
 .clock-trade {
@@ -902,11 +967,22 @@ tbody tr.clickable:focus-visible {
 
 .clock-track {
   position: relative;
-  height: 22px;
+  height: 24px;
   background: var(--surface-inset);
   border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid var(--border);
+  /* A gridline every year, so a two-year track reads as two years rather than
+     as a longer version of a one-year track. Suppressed when the years would
+     be too dense to count (a 10-year structural window). */
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent,
+    transparent calc(var(--year-pct, 100%) - 1px),
+    var(--tick-color, transparent) calc(var(--year-pct, 100%) - 1px),
+    var(--tick-color, transparent) var(--year-pct, 100%)
+  );
+  background-repeat: repeat-x;
 }
 
 /* Deliberately quiet. The covered span is the good news; the hatched tail is
@@ -1053,6 +1129,106 @@ tbody tr.clickable:focus-visible {
 
 .lot-body {
   padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
+/* ------------------------------------------------------- warranty start */
+
+.warranty-start {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.warranty-start-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.warranty-start-label {
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+}
+
+.warranty-start-date {
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.warranty-start-detail {
+  margin-top: var(--space-2);
+}
+
+.warranty-start-detail summary {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  width: fit-content;
+}
+
+.warranty-start-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.warranty-start-detail summary::before {
+  content: "›";
+  display: inline-block;
+  transition: transform var(--dur-fast) var(--ease);
+  font-size: 1.1em;
+}
+
+.warranty-start-detail[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.warranty-start-detail summary:hover {
+  color: var(--text);
+}
+
+.warranty-start-body {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.date-list {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-2);
+  width: fit-content;
+}
+
+.date-list > div {
+  display: contents;
+}
+
+.date-list dt {
+  color: var(--text-dim);
+  font-size: var(--text-xs);
+}
+
+.date-list dd {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+.date-list + p {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
 }
 
 /* ============================================================== controls */
@@ -1479,6 +1655,167 @@ label {
 .timeline-item:last-child {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+/* ========================================== scorecard: help and detail */
+
+.help-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+/* A definition marker on a column header. The distinctions this table turns
+   on are not guessable from a one-word header. */
+.help-dot {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: help;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.help-dot:hover,
+.help-dot:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.disclosure {
+  display: inline-block;
+  color: var(--text-faint);
+  font-size: var(--text-md);
+  line-height: 1;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.disclosure.is-open {
+  transform: rotate(90deg);
+}
+
+.detail-row > td {
+  padding: 0;
+  background: var(--surface-inset);
+}
+
+.sub-detail {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: fade-in 200ms var(--ease) both;
+}
+
+.contact-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.contact-links {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.contact-links a {
+  color: var(--accent-hover);
+}
+
+[data-theme="dark"] .contact-links a {
+  color: var(--accent);
+}
+
+.contact-links a:hover {
+  text-decoration: underline;
+}
+
+.charge-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.charge {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.charge-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+.charge-ref {
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .charge-ref {
+  color: var(--accent);
+}
+
+.charge-ref:hover {
+  text-decoration: underline;
+}
+
+.charge-title {
+  font-weight: 550;
+  font-size: var(--text-sm);
+}
+
+.charge-amount {
+  margin-left: auto;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.charge-rationale {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  line-height: var(--leading-snug);
+}
+
+/* Money columns carry meaning, so they carry colour. */
+.money-open {
+  color: var(--accent-hover);
+  font-weight: 650;
+}
+
+[data-theme="dark"] .money-open {
+  color: var(--accent);
+}
+
+.money-lost {
+  color: var(--critical);
+  font-weight: 650;
 }
 
 /* ================================================== recovery meter (subs) */

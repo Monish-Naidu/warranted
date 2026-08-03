@@ -98,7 +98,7 @@ export function CommandPalette({
     const lots: Result[] = (exposure?.lots ?? []).map((lot) => ({
       id: `lot-${lot.homeId}`,
       group: "Lots",
-      title: `Lot ${lot.lotNumber} — ${lot.address}`,
+      title: `Lot ${lot.lotNumber} · ${lot.address}`,
       subtitle: [
         lot.community,
         lot.plan,
@@ -120,7 +120,7 @@ export function CommandPalette({
       ({ claim, home, community }) => ({
         id: `claim-${claim.id}`,
         group: "Claims",
-        title: `${claim.reference} — ${claim.title}`,
+        title: `${claim.reference} · ${claim.title}`,
         subtitle: [
           `Lot ${home.lotNumber}`,
           community.name,

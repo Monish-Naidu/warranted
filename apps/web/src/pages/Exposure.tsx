@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ExposureWindow, type Lot } from "../api";
-
 import { EmptyState, ErrorState, PageSkeleton } from "../components/States";
+
+/** How `warranty_start_source` reads to a coordinator. */
+const START_SOURCE_LABELS: Record<string, string> = {
+  closing_date: "Closing date",
+  certificate_of_occupancy: "Certificate of occupancy",
+  possession_date: "Possession date",
+  first_occupancy: "First occupancy",
+  manual_override: "Manual override",
+};
 
 export function ExposurePage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -51,7 +59,7 @@ export function ExposurePage() {
         <Stat
           row={3}
           value={summary.lotsWithUnscheduledElevenMonth}
-          label="11-month reviews due, unscheduled"
+          label="11-month reviews unscheduled"
           tone={
             summary.lotsWithUnscheduledElevenMonth > 0 ? "warning" : undefined
           }
@@ -71,7 +79,7 @@ export function ExposurePage() {
 
         {alerts.length === 0 ? (
           <EmptyState title="No exposure alerts" tone="ok">
-            Every trade is either back-to-back with your warranty or already
+            Every trade is either back to back with your warranty or already
             closed out.
           </EmptyState>
         ) : (
@@ -114,8 +122,13 @@ export function ExposurePage() {
       </section>
 
       <section className="section">
-        <div className="section-head">
-          <h2 className="section-title">By lot</h2>
+        <h2 className="section-title" style={{ marginBottom: 0 }}>
+          By lot
+        </h2>
+
+        {/* Sticky: with ten lots on screen the legend scrolls away exactly
+            when you start needing it. */}
+        <div className="legend-bar">
           <ClockLegend />
         </div>
 
@@ -139,10 +152,10 @@ function ExposureHead({ skeleton }: { skeleton?: boolean }) {
       <div className="page-head">
         <h1>Exposure</h1>
         <p>
-          Your warranty to the homeowner runs from closing. Your subcontractors'
-          warranties to you run from <em>their</em> completion — often months
-          earlier. Everything below is the gap between those two clocks: work
-          you still owe the homeowner but can no longer charge back.
+          Your warranty to the homeowner runs from closing. Your
+          subcontractors' warranties to you run from their own completion,
+          often months earlier. The gap is work you still owe the homeowner but
+          can no longer charge back.
         </p>
       </div>
       {skeleton && <PageSkeleton stats={5} rows={3} />}
@@ -180,6 +193,10 @@ function ClockLegend() {
         Sub covers
       </span>
       <span className="clock-legend-item">
+        <span className="legend-swatch boundary" aria-hidden />
+        Sub warranty ends
+      </span>
+      <span className="clock-legend-item">
         <span className="legend-swatch exposed" aria-hidden />
         You carry alone
       </span>
@@ -196,8 +213,8 @@ function ClockLegend() {
 }
 
 /**
- * Worst first. A lot with an undocumented trade outranks everything — that is
- * the bus-factor failure, and no amount of exposure elsewhere is as
+ * Worst first. A lot with an undocumented trade outranks everything, because
+ * that is the bus-factor failure and no amount of exposure elsewhere is as
  * unrecoverable. After that, raw exposure days, then an overdue 11-month.
  */
 function riskFirst(a: Lot, b: Lot): number {
@@ -237,7 +254,7 @@ function LotCard({ lot, row }: { lot: Lot; row: number }) {
               ? `11-month review ${Math.abs(dueIn)}d overdue`
               : `11-month review due in ${dueIn}d`,
         }
-      : { cls: "", text: `11-month review in ${dueIn ?? "—"}d` };
+      : { cls: "", text: `11-month review in ${dueIn ?? "n/a"}d` };
 
   return (
     <article
@@ -246,13 +263,10 @@ function LotCard({ lot, row }: { lot: Lot; row: number }) {
     >
       <header className="lot-head">
         <div style={{ minWidth: 0 }}>
-          <div className="lot-title">
-            Lot {lot.lotNumber} — {lot.address}
-          </div>
+          <div className="lot-title">Lot {lot.lotNumber}</div>
           <div className="lot-meta">
-            {lot.community}
-            {lot.plan ? ` · ${lot.plan}` : ""} · warranty started{" "}
-            <span className="mono">{lot.warrantyStartDate}</span>
+            {lot.address} · {lot.community}
+            {lot.plan ? ` · ${lot.plan}` : ""}
           </div>
         </div>
 
@@ -278,6 +292,8 @@ function LotCard({ lot, row }: { lot: Lot; row: number }) {
         </div>
       </header>
 
+      <WarrantyStart lot={lot} />
+
       <div className="lot-body">
         {lot.exposure.length === 0 ? (
           <p className="muted" style={{ padding: "var(--space-3) 0" }}>
@@ -286,7 +302,7 @@ function LotCard({ lot, row }: { lot: Lot; row: number }) {
         ) : (
           <div className="clock-list">
             {[...lot.exposure]
-              // Undocumented first, then longest tail — same logic as the lot
+              // Undocumented first, then longest tail. Same logic as the lot
               // sort, applied within the card.
               .sort(
                 (a, b) =>
@@ -309,16 +325,77 @@ function LotCard({ lot, row }: { lot: Lot; row: number }) {
 }
 
 /**
+ * The warranty start date, with the record of which date it came from.
+ *
+ * Closing, certificate of occupancy, and possession routinely differ, and
+ * warranty documents disagree about which one governs. It is the most
+ * disputed field in the domain, which is why the schema stores the source and
+ * a note rather than deriving the date. Showing only the date threw away the
+ * half a coordinator needs when a homeowner argues their coverage ran longer.
+ */
+function WarrantyStart({ lot }: { lot: Lot }) {
+  const source = START_SOURCE_LABELS[lot.warrantyStartSource] ?? lot.warrantyStartSource;
+
+  const candidates = [
+    { label: "Closing", value: lot.closingDate },
+    { label: "Certificate of occupancy", value: lot.certificateOfOccupancyDate },
+    { label: "Possession", value: lot.possessionDate },
+  ].filter((c) => c.value);
+
+  // Worth calling out only when the candidates actually disagree; on a
+  // build-to-order they are usually the same week and the detail is noise.
+  const disagree =
+    new Set(candidates.map((c) => c.value)).size > 1 ? candidates : null;
+
+  return (
+    <div className="warranty-start">
+      <div className="warranty-start-main">
+        <span className="warranty-start-label">Warranty start</span>
+        <span className="warranty-start-date mono">{lot.warrantyStartDate}</span>
+        <span className="badge">{source}</span>
+        {disagree && <span className="badge warning">dates differ</span>}
+      </div>
+
+      {(lot.warrantyStartNote || disagree) && (
+        <details className="warranty-start-detail">
+          <summary>Why this date</summary>
+          <div className="warranty-start-body">
+            {disagree && (
+              <dl className="date-list">
+                {disagree.map((c) => (
+                  <div key={c.label}>
+                    <dt>{c.label}</dt>
+                    <dd className="mono">{c.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {lot.warrantyStartNote && (
+              <p className="muted">{lot.warrantyStartNote}</p>
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/**
  * One trade's two clocks on a single track.
  *
- * The track spans the builder's whole obligation for this trade — warranty
+ * The track spans the builder's whole obligation for this trade: warranty
  * start through the end of the tier that covers it. The solid segment is the
- * part the subcontractor's own warranty still backs; the hatched tail is what
- * the builder carries alone.
+ * part the subcontractor's own warranty still backs, and the hatched tail is
+ * what the builder carries alone.
  *
- * The denominator is the *full builder window*, not the exposed span. Using
- * the exposed span made every bar render 100% red, which is how the previous
- * version managed to draw a 30-day tail and a 272-day tail identically.
+ * The denominator is the full builder window, not the exposed span. Using the
+ * exposed span made every bar render 100% red, which is how the first version
+ * managed to draw a 30-day tail and a 272-day tail identically.
+ *
+ * Each row is scaled to its own trade, so a 1-year drywall bar and a 2-year
+ * plumbing bar are both full width and the "today" marks sit at different
+ * points. That is why the tier length and the end dates are printed rather
+ * than left to a tooltip.
  */
 function ClockBar({
   window: w,
@@ -334,16 +411,19 @@ function ClockBar({
   const exposedPct = (exposedDays / totalDays) * 100;
   const coveredPct = 100 - exposedPct;
 
-  // Where "now" falls in the window. Off-track values are simply not drawn.
   const elapsed = daysBetween(warrantyStart, todayIso());
   const todayPct = (elapsed / totalDays) * 100;
   const showToday = todayPct >= 0 && todayPct <= 100;
+
+  // A gridline every year, so a two-year track reads as two years at a glance
+  // rather than as a longer version of a one-year track.
+  const yearPct = (365 / totalDays) * 100;
 
   const label = w.unknown
     ? `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: no completion date on record. The entire ${totalDays}-day builder window is unrecoverable.`
     : exposedDays > 0
       ? `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: sub warranty ends ${w.subCoverageEnd}, your obligation runs to ${w.builderCoverageEnd}. ${exposedDays} of ${totalDays} days exposed.`
-      : `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: covered back-to-back through ${w.builderCoverageEnd}.`;
+      : `${w.trade.replace(/_/g, " ")}, ${w.subcontractorName}: covered back to back through ${w.builderCoverageEnd}.`;
 
   return (
     <div className="clock" style={{ "--row": row } as React.CSSProperties}>
@@ -352,23 +432,54 @@ function ClockBar({
         <div className="clock-sub">{w.subcontractorName}</div>
       </div>
 
-      <div className="clock-track" role="img" aria-label={label} title={label}>
-        {w.unknown ? (
-          <div className="clock-unknown" />
-        ) : (
-          <>
-            <div className="clock-covered" style={{ width: `${coveredPct}%` }} />
-            {exposedDays > 0 && (
-              <div className="clock-exposed" style={{ width: `${exposedPct}%` }} />
-            )}
-          </>
-        )}
-        {showToday && (
-          <div className="clock-today" style={{ left: `${todayPct}%` }} />
-        )}
+      <div className="clock-plot">
+        <div
+          className="clock-track"
+          role="img"
+          aria-label={label}
+          title={label}
+          style={
+            {
+              "--year-pct": `${yearPct}%`,
+              // Gridlines only help when they are countable. A ten-year
+              // structural window would draw nine of them into 24 pixels.
+              "--tick-color": yearPct >= 12 ? "var(--border)" : "transparent",
+            } as React.CSSProperties
+          }
+        >
+          {w.unknown ? (
+            <div className="clock-unknown" />
+          ) : (
+            <>
+              <div className="clock-covered" style={{ width: `${coveredPct}%` }} />
+              {exposedDays > 0 && (
+                <div className="clock-exposed" style={{ width: `${exposedPct}%` }} />
+              )}
+            </>
+          )}
+          {showToday && (
+            <div className="clock-today" style={{ left: `${todayPct}%` }} />
+          )}
+        </div>
+
+        {/* The dates the bar is drawn from. Without them the reader has no way
+            to tell that two rows on the same lot are on different scales. */}
+        <div className="clock-axis">
+          <span>{warrantyStart}</span>
+          {!w.unknown && w.subCoverageEnd && coveredPct > 16 && coveredPct < 88 && (
+            <span
+              className="clock-axis-mark"
+              style={{ left: `${coveredPct}%` }}
+              title={`${w.subcontractorName}'s warranty ends ${w.subCoverageEnd}`}
+            >
+              sub ends {w.subCoverageEnd}
+            </span>
+          )}
+          <span>{w.builderCoverageEnd}</span>
+        </div>
       </div>
 
-      <div>
+      <div className="clock-figure">
         <div
           className={`clock-days ${
             w.unknown ? "unknown" : exposedDays > 0 ? "exposed" : "covered"
@@ -380,16 +491,7 @@ function ClockBar({
               ? `${exposedDays}d exposed`
               : "covered"}
         </div>
-        <div
-          className="faint"
-          style={{
-            fontSize: "var(--text-2xs)",
-            textAlign: "right",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          of {totalDays}d
-        </div>
+        <div className="clock-window">of {totalDays}d</div>
       </div>
     </div>
   );

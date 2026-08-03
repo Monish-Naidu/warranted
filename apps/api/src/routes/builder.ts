@@ -104,6 +104,21 @@ builderRoutes.get("/exposure", async (c) => {
       community: community.name,
       plan: plan?.name ?? null,
       warrantyStartDate: start,
+      /*
+       * The start date travels with its provenance, always.
+       *
+       * Closing, certificate of occupancy, and possession routinely differ,
+       * and warranty documents disagree about which one governs — which makes
+       * this the most-disputed field in the domain. A coordinator defending a
+       * coverage decision needs to see *which* date was used and why, not just
+       * the answer. Sending the three candidate dates alongside it means the
+       * portal can show the disagreement rather than hiding it.
+       */
+      warrantyStartSource: home.warrantyStartSource,
+      warrantyStartNote: home.warrantyStartNote,
+      closingDate: home.closingDate,
+      certificateOfOccupancyDate: home.certificateOfOccupancyDate,
+      possessionDate: home.possessionDate,
       elevenMonth: {
         dueDate: elevenMonth?.dueDate ?? null,
         status: elevenMonth?.status ?? "pending",
@@ -270,11 +285,28 @@ builderRoutes.get("/subcontractors", async (c) => {
 });
 
 /**
- * Subcontractor scorecard — claim rate, warranty spend, and recovery rate.
+ * Subcontractor scorecard: what each sub cost, what is still billable, and
+ * what is already gone.
  *
- * This is procurement leverage. A sub who generates three times the claims of
- * their peers on the same plan is a pricing conversation, and until now nobody
- * had the data assembled to have it.
+ * The money is split three ways rather than two, because the three mean
+ * completely different things to the person reading the page:
+ *
+ *   open      `recoverable` — the sub's warranty is still open and nobody has
+ *             billed them yet. This is a to-do list with a dollar value on it,
+ *             and it is the only bucket the coordinator can still act on.
+ *   inFlight  `issued` and `disputed` — billed, not yet settled. Chase.
+ *   collected `collected` — actually recovered.
+ *   lost      `expired`, `no_sub_assigned`, `written_off` — the leak.
+ *
+ * An earlier version summed `recoverable` together with `collected` under a
+ * column labelled "Recovered", which told the coordinator that money still
+ * sitting unbilled had already come back, and silently dropped `issued`,
+ * `disputed`, and `written_off` from every total. Splitting them is what makes
+ * this page a worklist instead of a report.
+ *
+ * The per-charge detail rides along so a row can be expanded and worked
+ * without a second request: the claim it came from, the lot, and the
+ * rationale captured at the moment of decision.
  */
 builderRoutes.get("/subcontractors/scorecard", async (c) => {
   const builderId = builderIdOf(c);
@@ -284,6 +316,9 @@ builderRoutes.get("/subcontractors/scorecard", async (c) => {
       id: subcontractors.id,
       companyName: subcontractors.companyName,
       primaryTrade: subcontractors.primaryTrade,
+      contactName: subcontractors.contactName,
+      email: subcontractors.email,
+      phone: subcontractors.phone,
       insuranceExpiresOn: subcontractors.insuranceExpiresOn,
       lotsWorked: sql<number>`count(distinct ${subAssignments.homeId})::int`,
       undocumentedAssignments: sql<number>`count(*) filter (where ${subAssignments.completedAt} is null)::int`,
@@ -295,44 +330,86 @@ builderRoutes.get("/subcontractors/scorecard", async (c) => {
       subcontractors.id,
       subcontractors.companyName,
       subcontractors.primaryTrade,
+      subcontractors.contactName,
+      subcontractors.email,
+      subcontractors.phone,
       subcontractors.insuranceExpiresOn,
     );
 
   const charges = await db
     .select({
+      id: backcharges.id,
       subcontractorId: backcharges.subcontractorId,
       status: backcharges.status,
-      total: sql<number>`coalesce(sum(${backcharges.amountCents}), 0)::int`,
-      count: sql<number>`count(*)::int`,
+      amountCents: backcharges.amountCents,
+      rationale: backcharges.rationale,
+      daysLate: backcharges.daysLate,
+      claimId: claims.id,
+      claimReference: claims.reference,
+      claimTitle: claims.title,
+      claimTrade: claims.trade,
+      lotNumber: homes.lotNumber,
     })
     .from(backcharges)
     .innerJoin(claims, eq(backcharges.claimId, claims.id))
-    .where(eq(claims.builderId, builderId))
-    .groupBy(backcharges.subcontractorId, backcharges.status);
+    .innerJoin(homes, eq(claims.homeId, homes.id))
+    .where(eq(claims.builderId, builderId));
+
+  const OPEN = new Set(["recoverable"]);
+  const IN_FLIGHT = new Set(["issued", "disputed"]);
+  const LOST = new Set(["expired", "no_sub_assigned", "written_off"]);
 
   const scorecard = rows.map((sub) => {
     const mine = charges.filter((ch) => ch.subcontractorId === sub.id);
-    const recoverableCents = mine
-      .filter((m) => m.status === "recoverable" || m.status === "collected")
-      .reduce((s, m) => s + m.total, 0);
-    const lostCents = mine
-      .filter((m) => m.status === "expired" || m.status === "no_sub_assigned")
-      .reduce((s, m) => s + m.total, 0);
+    const sum = (predicate: (status: string) => boolean) =>
+      mine
+        .filter((m) => predicate(m.status))
+        .reduce((total, m) => total + (m.amountCents ?? 0), 0);
+
+    const openCents = sum((s) => OPEN.has(s));
+    const inFlightCents = sum((s) => IN_FLIGHT.has(s));
+    const collectedCents = sum((s) => s === "collected");
+    const lostCents = sum((s) => LOST.has(s));
 
     return {
       ...sub,
-      claimCount: mine.reduce((s, m) => s + m.count, 0),
-      recoverableCents,
-      // Warranty cost the builder could not pass back — the leak, per sub.
-      unrecoverableCents: lostCents,
+      claimCount: mine.length,
+      openCents,
+      inFlightCents,
+      collectedCents,
+      lostCents,
+      /*
+       * Of the money that has actually been resolved, how much came back.
+       * Open and in-flight are deliberately excluded — counting them would
+       * flatter the rate with money nobody has collected yet.
+       */
       recoveryRate:
-        recoverableCents + lostCents > 0
-          ? recoverableCents / (recoverableCents + lostCents)
+        collectedCents + lostCents > 0
+          ? collectedCents / (collectedCents + lostCents)
           : null,
+      backcharges: mine.map((m) => ({
+        id: m.id,
+        claimId: m.claimId,
+        claimReference: m.claimReference,
+        claimTitle: m.claimTitle,
+        trade: m.claimTrade,
+        lotNumber: m.lotNumber,
+        status: m.status,
+        amountCents: m.amountCents,
+        rationale: m.rationale,
+        daysLate: m.daysLate,
+      })),
     };
   });
 
-  scorecard.sort((a, b) => b.unrecoverableCents - a.unrecoverableCents);
+  // Billable money first: it is the only column anyone can still act on.
+  // Then the leak, which is the procurement conversation.
+  scorecard.sort(
+    (a, b) =>
+      b.openCents + b.inFlightCents - (a.openCents + a.inFlightCents) ||
+      b.lostCents - a.lostCents,
+  );
+
   return c.json({ subcontractors: scorecard });
 });
 

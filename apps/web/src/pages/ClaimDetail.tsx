@@ -7,14 +7,14 @@ import { IconArrowLeft } from "../components/Icon";
 import { ErrorState, PageSkeleton } from "../components/States";
 
 const OUTCOME_LABELS: Record<DeterminationOutcome, string> = {
-  covered: "Covered — we do the work",
-  not_covered_excluded: "Not covered — excluded by the warranty",
-  not_covered_expired: "Not covered — coverage expired",
-  not_covered_tolerance: "Not covered — within tolerance",
+  covered: "Covered, we do the work",
+  not_covered_excluded: "Not covered, excluded by the warranty",
+  not_covered_expired: "Not covered, coverage expired",
+  not_covered_tolerance: "Not covered, within tolerance",
   homeowner_maintenance: "Homeowner maintenance",
   manufacturer_warranty: "Manufacturer warranty",
   insurance_claim: "Insurance claim",
-  goodwill: "Goodwill — not covered, doing it anyway",
+  goodwill: "Goodwill, not covered but doing it anyway",
 };
 
 const STATUS_CLASS: Record<string, string> = {
@@ -263,13 +263,13 @@ function AssessmentCard({ assessment: a }: { assessment: AiAssessmentRow }) {
           <div className="ai-block">
             <h3 className="ai-block-title">Tolerance check</h3>
             <div className="muted">
-              {a.toleranceCheck.standard} — defect when {a.toleranceCheck.threshold}.
+              {a.toleranceCheck.standard}. Defect when {a.toleranceCheck.threshold}.
               {a.toleranceCheck.estimatedMeasurement
                 ? ` Estimated: ${a.toleranceCheck.estimatedMeasurement}.`
                 : " No scale reference in the photos, so no measurement was estimated."}{" "}
               {a.toleranceCheck.withinTolerance === true && (
                 <strong style={{ color: "var(--ok)" }}>
-                  Within tolerance — not a defect.
+                  Within tolerance, not a defect.
                 </strong>
               )}
               {a.toleranceCheck.withinTolerance === false && (
@@ -363,8 +363,8 @@ function DeterminationForm({
           <strong>
             {OUTCOME_LABELS[assessment.proposedOutcome as DeterminationOutcome]}
           </strong>
-          . Accept it or change it — either way your decision is what counts,
-          and the difference is recorded.
+          . Accept it or change it. Either way your decision is what counts, and
+          the difference is recorded.
         </p>
       )}
 

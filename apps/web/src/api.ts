@@ -89,6 +89,13 @@ export interface Lot {
   community: string;
   plan: string | null;
   warrantyStartDate: string;
+  /** Which date started the clock — never derived, always recorded. */
+  warrantyStartSource: string;
+  warrantyStartNote: string | null;
+  /** The competing dates. They routinely differ; showing them is the point. */
+  closingDate: string | null;
+  certificateOfOccupancyDate: string | null;
+  possessionDate: string | null;
   elevenMonth: {
     dueDate: string | null;
     status: string;
@@ -190,17 +197,39 @@ export interface ClaimDetail {
   }>;
 }
 
+export interface SubBackcharge {
+  id: string;
+  claimId: string;
+  claimReference: string;
+  claimTitle: string;
+  trade: string | null;
+  lotNumber: string;
+  status: string;
+  amountCents: number | null;
+  rationale: string;
+  daysLate: number | null;
+}
+
 export interface SubScorecardRow {
   id: string;
   companyName: string;
   primaryTrade: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
   insuranceExpiresOn: string | null;
   lotsWorked: number;
   undocumentedAssignments: number;
   claimCount: number;
-  recoverableCents: number;
-  unrecoverableCents: number;
+  /** Sub's warranty still open and nobody has billed them. Actionable. */
+  openCents: number;
+  /** Billed but unsettled. Chase. */
+  inFlightCents: number;
+  collectedCents: number;
+  /** Expired, no sub of record, or written off. The leak. */
+  lostCents: number;
   recoveryRate: number | null;
+  backcharges: SubBackcharge[];
 }
 
 // ---------------------------------------------------------------------------

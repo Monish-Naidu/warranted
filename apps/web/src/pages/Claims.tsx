@@ -65,7 +65,7 @@ export function ClaimsPage() {
         <h1>Claims</h1>
         <p>
           Warranty service requests from homeowners. Triage proposes a
-          determination with citations; you decide.
+          determination with citations. You decide.
         </p>
       </div>
 
