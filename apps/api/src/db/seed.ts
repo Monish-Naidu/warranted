@@ -12,11 +12,13 @@ import { addMonths, milestoneSchedule, today, type IsoDate } from "@warranted/wa
 import { hashPassword } from "../auth/password.js";
 import { db, pool } from "./index.js";
 import {
+  backcharges,
   builders,
   claimEvents,
   claims,
   communities,
   coverageTerms,
+  determinations,
   homeOwnerships,
   homes,
   milestones,
@@ -32,6 +34,13 @@ const DEMO_PASSWORD = "warranted-demo-2026";
 
 /** Anchor the fixtures to today so the countdowns are always meaningful. */
 const TODAY = today();
+
+/**
+ * Lots whose 11-month review is deliberately still unbooked. That single fact
+ * is what turns an exposure warning into a critical alert, so the demo needs
+ * both cases present — not every lot failing.
+ */
+const ELEVEN_MONTH_UNSCHEDULED = new Set(["42", "19"]);
 function monthsAgo(n: number): IsoDate {
   return addMonths(TODAY, -n);
 }
@@ -53,7 +62,20 @@ async function main() {
     .returning();
   if (!builder) throw new Error("builder insert failed");
 
-  const [admin, coordinator, ownerA, ownerB, ownerC] = await db
+  const [
+    admin,
+    coordinator,
+    ownerA,
+    ownerB,
+    ownerC,
+    ownerD,
+    ownerE,
+    ownerF,
+    ownerG,
+    ownerH,
+    ownerI,
+    ownerJ,
+  ] = await db
     .insert(users)
     .values([
       {
@@ -91,6 +113,57 @@ async function main() {
         role: "homeowner",
         builderId: null,
       },
+      // The rest of the community. These homes carry the claim history that
+      // makes plan-level patterns and the subcontractor scorecard meaningful.
+      {
+        email: "owner.lot8@example.com",
+        passwordHash,
+        fullName: "Bea Okonkwo",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot19@example.com",
+        passwordHash,
+        fullName: "Curtis Delgado",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot27@example.com",
+        passwordHash,
+        fullName: "Yuki Tanabe",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot23@example.com",
+        passwordHash,
+        fullName: "Ravi Menon",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot31@example.com",
+        passwordHash,
+        fullName: "Alma Fitzgerald",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot44@example.com",
+        passwordHash,
+        fullName: "Theo Brandt",
+        role: "homeowner",
+        builderId: null,
+      },
+      {
+        email: "owner.lot51@example.com",
+        passwordHash,
+        fullName: "Nina Sørensen",
+        role: "homeowner",
+        builderId: null,
+      },
     ])
     .returning();
 
@@ -106,11 +179,12 @@ async function main() {
     .returning();
   if (!community) throw new Error("community insert failed");
 
-  const [aspen, birch] = await db
+  const [aspen, birch, cypress] = await db
     .insert(plans)
     .values([
       { builderId: builder.id, name: "Aspen", elevation: "B", squareFeet: 2410 },
       { builderId: builder.id, name: "Birch", elevation: "A", squareFeet: 1980 },
+      { builderId: builder.id, name: "Cypress", elevation: "C", squareFeet: 2760 },
     ])
     .returning();
 
@@ -118,7 +192,7 @@ async function main() {
   // homes
   // -------------------------------------------------------------------------
 
-  const [lot42, lot7, lot15] = await db
+  const [lot42, lot7, lot15, lot8, lot19, lot27, lot23, lot31, lot44, lot51] = await db
     .insert(homes)
     .values([
       {
@@ -177,16 +251,171 @@ async function main() {
         warrantyStartSource: "closing_date",
         warrantyStartNote: "Standard closing-date start.",
       },
+
+      // ----------------------------------------------------------------------
+      // The rest of Cedar Hollow.
+      //
+      // Three lots on Aspen and two on Birch alongside the originals, plus two
+      // on Cypress. Repeating plans are the point: they are what let the same
+      // defect show up as a pattern rather than as unrelated one-offs.
+      // ----------------------------------------------------------------------
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: aspen?.id ?? null,
+        lotNumber: "8",
+        addressLine1: "1122 Cedar Hollow Dr",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5374,
+        longitude: -97.6299,
+        certificateOfOccupancyDate: monthsAgo(12),
+        closingDate: monthsAgo(11),
+        possessionDate: monthsAgo(11),
+        warrantyStartDate: monthsAgo(11),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote: "Standard closing-date start.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: aspen?.id ?? null,
+        lotNumber: "19",
+        addressLine1: "1206 Cedar Hollow Dr",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5383,
+        longitude: -97.6284,
+        certificateOfOccupancyDate: monthsAgo(15),
+        closingDate: monthsAgo(9),
+        possessionDate: monthsAgo(9),
+        warrantyStartDate: monthsAgo(9),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote:
+          "Second spec on the phase. CO six months before closing — same clock mismatch as Lot 42.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: aspen?.id ?? null,
+        lotNumber: "27",
+        addressLine1: "1240 Cedar Hollow Dr",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5391,
+        longitude: -97.6277,
+        certificateOfOccupancyDate: monthsAgo(8),
+        closingDate: monthsAgo(8),
+        possessionDate: monthsAgo(8),
+        warrantyStartDate: monthsAgo(8),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote: "Build-to-order.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: birch?.id ?? null,
+        lotNumber: "23",
+        addressLine1: "1218 Cedar Hollow Dr",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5386,
+        longitude: -97.6281,
+        certificateOfOccupancyDate: monthsAgo(14),
+        closingDate: monthsAgo(13),
+        possessionDate: monthsAgo(13),
+        warrantyStartDate: monthsAgo(13),
+        warrantyStartSource: "certificate_of_occupancy",
+        warrantyStartNote:
+          "Buyer took possession at CO under an early-occupancy agreement; warranty runs from CO, not the later closing.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: birch?.id ?? null,
+        lotNumber: "31",
+        addressLine1: "1254 Cedar Hollow Dr",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5394,
+        longitude: -97.6271,
+        certificateOfOccupancyDate: monthsAgo(5),
+        closingDate: monthsAgo(4),
+        possessionDate: monthsAgo(4),
+        warrantyStartDate: monthsAgo(4),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote: "Standard closing-date start.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: cypress?.id ?? null,
+        lotNumber: "44",
+        addressLine1: "1301 Cedar Hollow Ct",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5401,
+        longitude: -97.6264,
+        certificateOfOccupancyDate: monthsAgo(7),
+        closingDate: monthsAgo(7),
+        possessionDate: monthsAgo(7),
+        warrantyStartDate: monthsAgo(7),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote: "Standard closing-date start.",
+      },
+      {
+        builderId: builder.id,
+        communityId: community.id,
+        planId: cypress?.id ?? null,
+        lotNumber: "51",
+        addressLine1: "1315 Cedar Hollow Ct",
+        city: "Round Rock",
+        state: "TX",
+        postalCode: "78665",
+        latitude: 30.5406,
+        longitude: -97.6258,
+        certificateOfOccupancyDate: monthsAgo(6),
+        closingDate: monthsAgo(5),
+        possessionDate: monthsAgo(5),
+        warrantyStartDate: monthsAgo(5),
+        warrantyStartSource: "closing_date",
+        warrantyStartNote: "Standard closing-date start.",
+      },
     ])
     .returning();
 
   if (!lot42 || !lot7 || !lot15) throw new Error("home insert failed");
+  if (!lot8 || !lot19 || !lot27 || !lot23 || !lot31 || !lot44 || !lot51) {
+    throw new Error("home insert failed");
+  }
 
-  await db.insert(homeOwnerships).values([
-    { homeId: lot42.id, userId: ownerA!.id, isOriginalOwner: true, startedAt: lot42.warrantyStartDate },
-    { homeId: lot7.id, userId: ownerB!.id, isOriginalOwner: true, startedAt: lot7.warrantyStartDate },
-    { homeId: lot15.id, userId: ownerC!.id, isOriginalOwner: true, startedAt: lot15.warrantyStartDate },
-  ]);
+  const allHomes = [lot42, lot7, lot15, lot8, lot19, lot27, lot23, lot31, lot44, lot51];
+
+  await db.insert(homeOwnerships).values(
+    [
+      [lot42, ownerA],
+      [lot7, ownerB],
+      [lot15, ownerC],
+      [lot8, ownerD],
+      [lot19, ownerE],
+      [lot27, ownerF],
+      [lot23, ownerG],
+      [lot31, ownerH],
+      [lot44, ownerI],
+      [lot51, ownerJ],
+    ].map(([home, owner]) => ({
+      homeId: (home as typeof lot42).id,
+      userId: (owner as NonNullable<typeof ownerA>).id,
+      isOriginalOwner: true,
+      startedAt: (home as typeof lot42).warrantyStartDate,
+    })),
+  );
 
   // -------------------------------------------------------------------------
   // warranty document + terms
@@ -265,7 +494,7 @@ async function main() {
     ]);
   }
 
-  for (const home of [lot42, lot7, lot15]) {
+  for (const home of allHomes) {
     const start = home.warrantyStartDate as IsoDate;
     await db.insert(warranties).values([
       {
@@ -296,8 +525,13 @@ async function main() {
       },
     ]);
 
-    // Milestones, with the 11-month left unscheduled on Lot 42 on purpose —
-    // that combination is what escalates its alerts to critical.
+    // Milestones. The 11-month is left unscheduled on Lot 42 and Lot 19 on
+    // purpose — an unscheduled 11-month is what escalates an exposure alert
+    // from warning to critical, and both are spec homes whose sub clocks are
+    // already closing. The rest are booked, so the board shows the healthy
+    // case alongside the failing one.
+    const elevenMonthBooked = !ELEVEN_MONTH_UNSCHEDULED.has(home.lotNumber);
+
     await db.insert(milestones).values(
       milestoneSchedule(start, TODAY).map((m) => ({
         homeId: home.id,
@@ -305,7 +539,9 @@ async function main() {
         dueDate: m.dueDate,
         status:
           m.kind === "eleven_month"
-            ? ("pending" as const)
+            ? elevenMonthBooked
+              ? ("scheduled" as const)
+              : ("pending" as const)
             : m.overdue
               ? ("completed" as const)
               : ("pending" as const),
@@ -370,10 +606,30 @@ async function main() {
         insuranceExpiresOn: addMonths(TODAY, 7),
         defaultWarrantyMonths: 24,
       },
+      {
+        builderId: builder.id,
+        companyName: "Sabine Tile & Stone",
+        primaryTrade: "tile",
+        contactName: "Marisol Cabrera",
+        email: "marisol@sabinetile.example",
+        phone: "512-555-0133",
+        insuranceExpiresOn: addMonths(TODAY, 5),
+        defaultWarrantyMonths: 12,
+      },
+      {
+        builderId: builder.id,
+        companyName: "Guadalupe Roofing",
+        primaryTrade: "roofing",
+        contactName: "Owen Farrell",
+        email: "owen@guadaluperoofing.example",
+        phone: "512-555-0122",
+        insuranceExpiresOn: addMonths(TODAY, 11),
+        defaultWarrantyMonths: 24,
+      },
     ])
     .returning();
 
-  const [drywall, plumbing, hvac, framing, electrical] = subs;
+  const [drywall, plumbing, hvac, framing, electrical, tile, roofing] = subs;
 
   await db.insert(subAssignments).values([
     // Lot 42 — the spec home. Trades finished ~16 months ago; the house closed
@@ -453,6 +709,106 @@ async function main() {
       subWarrantyMonths: 12,
       contractReference: "PO-2025-0341",
     },
+    {
+      homeId: lot15.id,
+      subcontractorId: plumbing!.id,
+      trade: "plumbing",
+      completedAt: monthsAgo(9),
+      subWarrantyMonths: 24,
+      contractReference: "PO-2025-0338",
+    },
+
+    // Lot 8 — closed a month after CO; clocks nearly line up.
+    ...[
+      { sub: drywall!, trade: "drywall" as const, months: 12, done: 12 },
+      { sub: plumbing!, trade: "plumbing" as const, months: 24, done: 13 },
+      { sub: electrical!, trade: "electrical" as const, months: 24, done: 13 },
+    ].map((a, i) => ({
+      homeId: lot8.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2025-05${10 + i}`,
+    })),
+
+    // Lot 19 — the second spec. Same shape as Lot 42: trades finished long
+    // before the sale, so the tail is wide and the 11-month is still unbooked.
+    ...[
+      { sub: drywall!, trade: "drywall" as const, months: 12, done: 16 },
+      { sub: hvac!, trade: "hvac" as const, months: 24, done: 16 },
+      { sub: roofing!, trade: "roofing" as const, months: 24, done: 17 },
+    ].map((a, i) => ({
+      homeId: lot19.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2024-06${20 + i}`,
+    })),
+
+    // Lot 27 — healthy build-to-order.
+    ...[
+      { sub: drywall!, trade: "drywall" as const, months: 12, done: 8 },
+      { sub: hvac!, trade: "hvac" as const, months: 24, done: 9 },
+    ].map((a, i) => ({
+      homeId: lot27.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2025-07${30 + i}`,
+    })),
+
+    // Lot 23 — oldest home in the community; workmanship year already closed.
+    ...[
+      { sub: plumbing!, trade: "plumbing" as const, months: 24, done: 15 },
+      { sub: drywall!, trade: "drywall" as const, months: 12, done: 14 },
+    ].map((a, i) => ({
+      homeId: lot23.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2024-08${40 + i}`,
+    })),
+
+    // Lot 31 — newest. Everything still comfortably covered.
+    ...[
+      { sub: plumbing!, trade: "plumbing" as const, months: 24, done: 5 },
+      { sub: drywall!, trade: "drywall" as const, months: 12, done: 5 },
+    ].map((a, i) => ({
+      homeId: lot31.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2026-09${50 + i}`,
+    })),
+
+    // Lots 44 and 51 — Cypress. The tile sub is the one to watch here.
+    ...[
+      { sub: tile!, trade: "tile" as const, months: 12, done: 8 },
+      { sub: plumbing!, trade: "plumbing" as const, months: 24, done: 9 },
+    ].map((a, i) => ({
+      homeId: lot44.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2025-10${60 + i}`,
+    })),
+    ...[
+      { sub: tile!, trade: "tile" as const, months: 12, done: 7 },
+      { sub: roofing!, trade: "roofing" as const, months: 24, done: 8 },
+    ].map((a, i) => ({
+      homeId: lot51.id,
+      subcontractorId: a.sub.id,
+      trade: a.trade,
+      completedAt: monthsAgo(a.done),
+      subWarrantyMonths: a.months,
+      contractReference: `PO-2025-11${70 + i}`,
+    })),
   ]);
 
   // -------------------------------------------------------------------------
@@ -500,6 +856,455 @@ async function main() {
       toStatus: "submitted",
       note: "Filed from the mobile app.",
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // claim history
+  //
+  // The two claims above are left untriaged so the triage flow has something to
+  // act on. Everything below is settled history, and it is what makes the rest
+  // of the portal say anything:
+  //
+  //   - Plan patterns needs the same trade claimed on two or more homes of the
+  //     same plan. Drywall on three Aspens, plumbing on three Birches, and tile
+  //     on both Cypresses are the repeats worth surfacing.
+  //   - The subcontractor scorecard reads backcharges, not claims. Without a
+  //     recorded determination and a backcharge, every column is zero.
+  //
+  // The mix of recoverable and expired backcharges is the point of the page:
+  // the same defect costs the builder nothing or costs it everything depending
+  // on whether anyone noticed before the sub's clock ran out.
+  // ---------------------------------------------------------------------------
+
+  type Settled = {
+    home: typeof lot42;
+    owner: NonNullable<typeof ownerA>;
+    reference: string;
+    title: string;
+    description: string;
+    room: string;
+    trade: "drywall" | "plumbing" | "hvac" | "tile" | "roofing" | "electrical";
+    tier: "workmanship" | "systems" | "structural";
+    severity: "emergency" | "urgent" | "routine" | "cosmetic";
+    monthsAgoFiled: number;
+    status: "verified" | "denied" | "scheduled" | "approved" | "referred";
+    outcome:
+      | "covered"
+      | "not_covered_tolerance"
+      | "homeowner_maintenance"
+      | "not_covered_expired"
+      | "goodwill";
+    reason: string;
+    costCents: number | null;
+    /** null when the outcome puts no cost on the builder at all. */
+    backcharge: {
+      sub: NonNullable<typeof drywall>;
+      status: "recoverable" | "expired" | "no_sub_assigned" | "collected";
+      amountCents: number;
+      rationale: string;
+      daysLate: number | null;
+    } | null;
+  };
+
+  const settled: Settled[] = [
+    // -- Aspen · drywall -----------------------------------------------------
+    // Three homes on the same plan, same trade. Two recoverable, one not,
+    // purely because of when it was caught.
+    {
+      home: lot8,
+      owner: ownerD!,
+      reference: "WC-0912",
+      title: "Nail pops along the upstairs hallway",
+      description:
+        "A row of small round bumps has appeared down the hallway wall upstairs. Maybe a dozen of them.",
+      room: "Upstairs hallway",
+      trade: "drywall",
+      tier: "workmanship",
+      severity: "cosmetic",
+      monthsAgoFiled: 6,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Nail pops beyond the one-per-wall allowance in the performance standard. Repaired and repainted at the 11-month visit.",
+      costCents: 42_000,
+      backcharge: {
+        sub: drywall!,
+        status: "collected",
+        amountCents: 42_000,
+        rationale:
+          "Valley Drywall's warranty was open when the claim was filed. Backcharged and collected against PO-2025-0510.",
+        daysLate: null,
+      },
+    },
+    {
+      home: lot19,
+      owner: ownerE!,
+      reference: "WC-0948",
+      title: "Seam showing on the living room ceiling",
+      description:
+        "There's a straight line across the ceiling that catches the light in the afternoon. It wasn't there when we moved in.",
+      room: "Living room",
+      trade: "drywall",
+      tier: "workmanship",
+      severity: "cosmetic",
+      monthsAgoFiled: 3,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Visible seam under normal lighting exceeds the finish standard. Re-floated and repainted.",
+      costCents: 68_000,
+      backcharge: {
+        sub: drywall!,
+        // The spec-home tail, in one row: the house sold six months after the
+        // sub finished, so their clock closed while the homeowner's ran on.
+        status: "expired",
+        amountCents: 68_000,
+        rationale:
+          "Valley Drywall's warranty closed 118 days before this claim was filed — Lot 19 sat as inventory for six months after they finished. Not recoverable.",
+        daysLate: 118,
+      },
+    },
+    {
+      home: lot27,
+      owner: ownerF!,
+      reference: "WC-1015",
+      title: "Hairline crack over the pantry door",
+      description: "Small crack above the pantry doorframe, about four inches long.",
+      room: "Kitchen",
+      trade: "drywall",
+      tier: "workmanship",
+      severity: "cosmetic",
+      monthsAgoFiled: 2,
+      status: "denied",
+      outcome: "not_covered_tolerance",
+      reason:
+        "Measured at approximately 1/32 inch. The performance standard treats cracks under 1/16 inch as normal first-year drying shrinkage, not a defect.",
+      costCents: null,
+      backcharge: null,
+    },
+
+    // -- Birch · plumbing ----------------------------------------------------
+    {
+      home: lot15,
+      owner: ownerC!,
+      reference: "WC-0977",
+      title: "Master shower drains slowly",
+      description:
+        "Water pools around my feet in the master shower and takes a few minutes to clear after.",
+      room: "Master bathroom",
+      trade: "plumbing",
+      tier: "systems",
+      severity: "routine",
+      monthsAgoFiled: 3,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Shower pan slope out of tolerance toward the drain. Pan reset and retested.",
+      costCents: 138_000,
+      backcharge: {
+        sub: plumbing!,
+        status: "recoverable",
+        amountCents: 138_000,
+        rationale:
+          "Copper State's two-year warranty runs well past this claim. Backcharge issued against PO-2025-0338.",
+        daysLate: null,
+      },
+    },
+    {
+      home: lot23,
+      owner: ownerG!,
+      reference: "WC-0854",
+      title: "Water hammer when the washer shuts off",
+      description:
+        "Loud bang in the wall every time the washing machine finishes filling.",
+      room: "Laundry",
+      trade: "plumbing",
+      tier: "systems",
+      severity: "routine",
+      monthsAgoFiled: 8,
+      status: "verified",
+      outcome: "covered",
+      reason: "Missing arrestor on the washer supply. Installed and verified.",
+      costCents: 31_000,
+      backcharge: {
+        sub: plumbing!,
+        status: "collected",
+        amountCents: 31_000,
+        rationale: "Within Copper State's window. Backcharged and collected.",
+        daysLate: null,
+      },
+    },
+    {
+      home: lot31,
+      owner: ownerH!,
+      reference: "WC-1042",
+      title: "Kitchen faucet drips at the base",
+      description: "Small puddle around the base of the kitchen faucet each morning.",
+      room: "Kitchen",
+      trade: "plumbing",
+      tier: "systems",
+      severity: "routine",
+      monthsAgoFiled: 1,
+      status: "scheduled",
+      outcome: "covered",
+      reason: "Failed supply connection at the faucet base. Scheduled for reseal.",
+      costCents: 18_000,
+      backcharge: {
+        sub: plumbing!,
+        status: "recoverable",
+        amountCents: 18_000,
+        rationale:
+          "Copper State's warranty is open through the systems tier. Recoverable in full.",
+        daysLate: null,
+      },
+    },
+
+    // -- Cypress · tile ------------------------------------------------------
+    // Both homes on the plan, same trade, same failure. This is the pattern
+    // that should prompt a look at the installation detail, not two repairs.
+    {
+      home: lot44,
+      owner: ownerI!,
+      reference: "WC-0993",
+      title: "Grout cracking along the shower corner",
+      description:
+        "The grout in the corner of the guest shower has cracked and a piece came out.",
+      room: "Guest bathroom",
+      trade: "tile",
+      tier: "workmanship",
+      severity: "routine",
+      monthsAgoFiled: 4,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Grout used in a change-of-plane joint where flexible sealant is required. Raked out and resealed correctly.",
+      costCents: 54_000,
+      backcharge: {
+        sub: tile!,
+        status: "recoverable",
+        amountCents: 54_000,
+        rationale: "Sabine Tile's warranty is open. Backcharge issued.",
+        daysLate: null,
+      },
+    },
+    {
+      home: lot51,
+      owner: ownerJ!,
+      reference: "WC-1028",
+      title: "Same grout cracking in the master shower",
+      description:
+        "Grout is cracked where the shower wall meets the floor, all along one side.",
+      room: "Master bathroom",
+      trade: "tile",
+      tier: "workmanship",
+      severity: "routine",
+      monthsAgoFiled: 2,
+      status: "approved",
+      outcome: "covered",
+      reason:
+        "Identical detail to Lot 44 — rigid grout at a change of plane. Same correction.",
+      costCents: 61_000,
+      backcharge: {
+        sub: tile!,
+        status: "recoverable",
+        amountCents: 61_000,
+        rationale:
+          "Sabine Tile's warranty is open. Second occurrence on the Cypress plan — raise the installation detail before the next start.",
+        daysLate: null,
+      },
+    },
+
+    // -- Aspen · hvac --------------------------------------------------------
+    {
+      home: lot19,
+      owner: ownerE!,
+      reference: "WC-0951",
+      title: "Upstairs won't hold temperature",
+      description: "Upstairs runs six or seven degrees warm on hot days.",
+      room: "Upstairs",
+      trade: "hvac",
+      tier: "systems",
+      severity: "urgent",
+      monthsAgoFiled: 3,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Return undersized for the upstairs zone against the design. Return enlarged and balanced.",
+      costCents: 219_000,
+      backcharge: {
+        sub: hvac!,
+        status: "expired",
+        amountCents: 219_000,
+        rationale:
+          "Lone Star Mechanical's warranty closed before this claim, and their certificate of insurance has since lapsed. Unrecoverable on both counts.",
+        daysLate: 64,
+      },
+    },
+    {
+      home: lot27,
+      owner: ownerF!,
+      reference: "WC-1009",
+      title: "Condensate line backing up",
+      description: "Water dripping from the ceiling below the air handler closet.",
+      room: "Hallway ceiling",
+      trade: "hvac",
+      tier: "systems",
+      severity: "emergency",
+      monthsAgoFiled: 2,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Condensate line laid without fall and unglued at one joint. Re-run, glued, and the ceiling patched.",
+      costCents: 96_000,
+      backcharge: {
+        sub: hvac!,
+        status: "recoverable",
+        amountCents: 96_000,
+        rationale: "Within Lone Star's two-year window. Backcharge issued.",
+        daysLate: null,
+      },
+    },
+
+    // -- the bus-factor failure, priced ---------------------------------------
+    {
+      home: lot15,
+      owner: ownerC!,
+      reference: "WC-0961",
+      title: "Floor squeak across the upstairs landing",
+      description:
+        "The landing squeaks badly in three or four spots, worse in the mornings.",
+      room: "Upstairs landing",
+      trade: "drywall",
+      tier: "workmanship",
+      severity: "routine",
+      monthsAgoFiled: 4,
+      status: "verified",
+      outcome: "covered",
+      reason:
+        "Subfloor fastening short of spec at the landing. Screwed off from below and re-secured.",
+      costCents: 87_000,
+      backcharge: {
+        sub: framing!,
+        // The whole argument for recording completion dates, in one row.
+        status: "no_sub_assigned",
+        amountCents: 87_000,
+        rationale:
+          "Hill Country Framing is the sub of record for Lot 15, but no completion date was ever entered, so their warranty window can't be established. Nothing to charge back against.",
+        daysLate: null,
+      },
+    },
+
+    // -- excluded, so the coordinator's judgment is visible too ---------------
+    {
+      home: lot23,
+      owner: ownerG!,
+      reference: "WC-0866",
+      title: "Mildew along the tub caulk",
+      description: "Black spots in the caulk line around the guest tub.",
+      room: "Guest bathroom",
+      trade: "tile",
+      tier: "workmanship",
+      severity: "cosmetic",
+      monthsAgoFiled: 7,
+      status: "referred",
+      outcome: "homeowner_maintenance",
+      reason:
+        "§3.0(b) puts re-caulking of tubs and showers on the homeowner. Sent the maintenance guidance rather than a service visit.",
+      costCents: null,
+      backcharge: null,
+    },
+    {
+      home: lot23,
+      owner: ownerG!,
+      reference: "WC-0871",
+      title: "Roof shingle lifted after the storm",
+      description: "Two shingles on the back slope are curled up after last week's wind.",
+      room: "Roof",
+      trade: "roofing",
+      tier: "workmanship",
+      severity: "urgent",
+      monthsAgoFiled: 6,
+      status: "verified",
+      outcome: "goodwill",
+      reason:
+        "Storm damage is excluded under §3.0(e) and belongs to the homeowner's policy. Two shingles — replaced at our cost rather than send them to a deductible.",
+      costCents: 24_000,
+      backcharge: null,
+    },
+  ];
+
+  for (const spec of settled) {
+    const [claim] = await db
+      .insert(claims)
+      .values({
+        builderId: builder.id,
+        homeId: spec.home.id,
+        reportedByUserId: spec.owner.id,
+        reference: spec.reference,
+        title: spec.title,
+        description: spec.description,
+        room: spec.room,
+        trade: spec.trade,
+        tier: spec.tier,
+        reportedSeverity: spec.severity,
+        assessedSeverity: spec.severity,
+        reportedOn: monthsAgo(spec.monthsAgoFiled),
+        status: spec.status,
+      })
+      .returning();
+
+    if (!claim) continue;
+
+    await db.insert(claimEvents).values([
+      {
+        claimId: claim.id,
+        actorUserId: spec.owner.id,
+        kind: "submitted",
+        toStatus: "submitted",
+        note: "Filed from the mobile app.",
+      },
+      {
+        claimId: claim.id,
+        actorUserId: coordinator!.id,
+        kind: "determined",
+        fromStatus: "under_review",
+        toStatus: spec.status,
+        note: spec.reason,
+      },
+    ]);
+
+    await db.insert(determinations).values({
+      claimId: claim.id,
+      decidedByUserId: coordinator!.id,
+      outcome: spec.outcome,
+      tier: spec.tier,
+      trade: spec.trade,
+      reason: spec.reason,
+      // No AI proposal behind these — they predate triage being switched on,
+      // which is also why agreedWithAi is null rather than false.
+      aiAssessmentId: null,
+      agreedWithAi: null,
+      responsibleSubcontractorId: spec.backcharge?.sub.id ?? null,
+      estimatedCostCents: spec.costCents,
+    });
+
+    if (spec.backcharge) {
+      await db.insert(backcharges).values({
+        claimId: claim.id,
+        subcontractorId: spec.backcharge.sub.id,
+        subAssignmentId: null,
+        status: spec.backcharge.status,
+        amountCents: spec.backcharge.amountCents,
+        rationale: spec.backcharge.rationale,
+        daysLate: spec.backcharge.daysLate,
+        issuedAt:
+          spec.backcharge.status === "collected" ||
+          spec.backcharge.status === "recoverable"
+            ? new Date()
+            : null,
+        collectedAt: spec.backcharge.status === "collected" ? new Date() : null,
+      });
+    }
   }
 
   console.log(`

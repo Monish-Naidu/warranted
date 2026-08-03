@@ -15,6 +15,15 @@ async function main() {
   await db.execute(sql`drop schema public cascade`);
   await db.execute(sql`create schema public`);
 
+  /*
+   * Drizzle records applied migrations in `drizzle.__drizzle_migrations`, not
+   * in `public`. Dropping only `public` leaves that journal intact, so the
+   * migrate call below sees every migration as already applied, creates
+   * nothing, and reports success — leaving an empty database that fails on
+   * the first insert instead of at reset time.
+   */
+  await db.execute(sql`drop schema if exists drizzle cascade`);
+
   console.log("Re-running migrations…");
   await migrate(db, { migrationsFolder: "./drizzle" });
 
