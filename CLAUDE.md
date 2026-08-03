@@ -4,6 +4,9 @@ Warranty infrastructure connecting home buyers to their builders. Read
 `README.md` for the business thesis and `docs/DOMAIN.md` for the full domain
 explainer before making design decisions — the domain is unusual and the
 reasoning behind the model is not obvious from the code alone.
+`docs/OPERATIONS.md` is the operational view: how a builder gets onboarded, what
+the warranty coordinator does day to day, and which parts of that are actually
+built.
 
 ## Run it
 
