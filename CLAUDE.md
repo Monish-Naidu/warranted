@@ -38,6 +38,18 @@ touch anything under `api/` or `vercel.json`:
   Anything needing a long-lived process or a writable disk — the `/uploads`
   static mount, for one — belongs in `index.ts`, which the serverless
   deployment never loads.
+- **`api/index.ts` replays the request body, and must keep doing so.** Vercel's
+  Node launcher runs with `shouldAddHelpers: true`: it reads the body itself
+  and hands you the parsed value on `req.body`, leaving the stream consumed.
+  The adapter builds a Web `Request` from that stream and waits forever. Every
+  GET looks perfectly healthy while every login and claim submission times out
+  at 60s. Use `@hono/node-server/vercel`, never `hono/vercel` — the latter is
+  for the Web runtime and fails with `this.raw.headers.get is not a function`.
+
+Both of those only fail at *request* time, so a green build proves nothing.
+The smoke test that catches them drives the built artifact through an
+http.Server that eats the body first; a test that calls the handler with a
+`Request` will agree with a broken adapter.
 
 `DB_POOL_MAX=1` on serverless. Each warm instance gets its own `pg` pool, so
 the local default of 10 multiplies across instances and exhausts the database's
