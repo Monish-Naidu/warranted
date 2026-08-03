@@ -6,3 +6,9 @@ allowBuilds:
   # Unpacks the bundled Postgres server binaries used by `pnpm db:local`.
   '@embedded-postgres/darwin-arm64': true
   esbuild: true
+  # Denied on purpose. This is the variant pulled on Linux CI and on Vercel's
+  # build image, where `pnpm db:local` is never run — unpacking a Postgres
+  # server there is pure cost. Left unlisted, pnpm fails the install outright
+  # with ERR_PNPM_IGNORED_BUILDS rather than warning.
+  '@embedded-postgres/linux-x64': false
+  '@embedded-postgres/linux-arm64': false
