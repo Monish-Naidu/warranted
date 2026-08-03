@@ -15,7 +15,7 @@
  */
 
 import { handle } from "hono/vercel";
-import { app } from "../apps/api/dist/app.bundle.js";
+import { app } from "../apps/api/dist/app.bundle.cjs";
 
 export const config = {
   runtime: "nodejs",

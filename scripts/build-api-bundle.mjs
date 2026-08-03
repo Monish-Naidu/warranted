@@ -17,7 +17,7 @@
  */
 
 import { build } from "esbuild";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,12 +33,24 @@ const external = Object.keys(apiPkg.dependencies ?? {}).filter(
   (name) => !name.startsWith("@warranted/"),
 );
 
+/*
+ * CommonJS, with an explicit `.cjs` extension, and both parts matter.
+ *
+ * Vercel compiles the `api/index.ts` entry to CJS because the repo root
+ * package.json declares no `type`. `apps/api/package.json` does declare
+ * `"type": "module"`, so anything named `.js` under that directory is treated
+ * as ESM no matter what it contains — and a CJS entry requiring it dies at
+ * runtime with ERR_REQUIRE_ESM. `.cjs` pins the format at the file level and
+ * takes the ambient `type` out of the argument entirely.
+ */
+const outfile = resolve(root, "apps/api/dist/app.bundle.cjs");
+
 const result = await build({
   entryPoints: [resolve(root, "apps/api/src/app.ts")],
-  outfile: resolve(root, "apps/api/dist/app.bundle.js"),
+  outfile,
   bundle: true,
   platform: "node",
-  format: "esm",
+  format: "cjs",
   target: "node22",
   sourcemap: true,
   external,
@@ -47,5 +59,18 @@ const result = await build({
 
 if (result.errors.length > 0) process.exit(1);
 
-console.log(`  API bundle → apps/api/dist/app.bundle.js`);
+// The bundle is generated, so there is no source for TypeScript to look at
+// when `api/index.ts` imports it. This is the whole of its public surface —
+// `handle()` needs nothing but `fetch`.
+await writeFile(
+  resolve(root, "apps/api/dist/app.bundle.d.cts"),
+  [
+    "import type { Hono } from \"hono\";",
+    "",
+    "export declare const app: Hono<any, any, any>;",
+    "",
+  ].join("\n"),
+);
+
+console.log(`  API bundle → apps/api/dist/app.bundle.cjs`);
 console.log(`  external: ${external.join(", ")}`);
