@@ -1,6 +1,14 @@
 import type {
+  CreateCommunityInput,
   CreateDeterminationInput,
+  CreateHomeInput,
+  CreatePlanInput,
+  CreateSubAssignmentInput,
+  CreateSubcontractorInput,
+  ScheduleAppointmentInput,
   SessionUser,
+  UpdateAppointmentInput,
+  UpdateBackchargeInput,
 } from "@warranted/shared";
 
 const TOKEN_KEY = "warranted.token";
@@ -232,6 +240,71 @@ export interface SubScorecardRow {
   backcharges: SubBackcharge[];
 }
 
+export interface CommunityRow {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+  postalCode: string | null;
+}
+
+export interface PlanRow {
+  id: string;
+  name: string;
+  elevation: string | null;
+  squareFeet: number | null;
+}
+
+export interface SubcontractorRow {
+  id: string;
+  companyName: string;
+  primaryTrade: string;
+  defaultWarrantyMonths: number;
+}
+
+/** Mirrors the flat shape `GET /api/homes` actually returns. */
+export interface HomeListRow {
+  id: string;
+  lotNumber: string;
+  address: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    state: string;
+    postalCode: string;
+  };
+  community: { id: string; name: string };
+  plan: { id: string; name: string; elevation: string | null } | null;
+  warranty: {
+    startDate: string;
+    startSource: string;
+    startNote: string | null;
+  };
+}
+
+export interface AppointmentRow {
+  id: string;
+  scheduledFor: string;
+  windowMinutes: number;
+  homeownerConfirmed: boolean;
+  completedAt: string | null;
+  notes: string | null;
+  home: { id: string; lotNumber: string; address: string; community: string };
+  subcontractor: {
+    id: string;
+    companyName: string;
+    phone: string | null;
+    email: string | null;
+  } | null;
+  claims: Array<{
+    claimId: string;
+    reference: string;
+    title: string;
+    trade: string | null;
+    status: string;
+  }>;
+}
+
 // ---------------------------------------------------------------------------
 
 export const api = {
@@ -299,4 +372,80 @@ export const api = {
       `/homes/${homeId}/milestones/${kind}/schedule`,
       { method: "POST", body: JSON.stringify({ scheduledFor }) },
     ),
+
+  // ------------------------------------------------------------------ setup
+
+  communities: () =>
+    request<{ communities: CommunityRow[] }>("/admin/communities"),
+
+  createCommunity: (input: CreateCommunityInput) =>
+    request<{ community: CommunityRow }>("/admin/communities", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  plans: () => request<{ plans: PlanRow[] }>("/admin/plans"),
+
+  createPlan: (input: CreatePlanInput) =>
+    request<{ plan: PlanRow }>("/admin/plans", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  createSubcontractor: (input: CreateSubcontractorInput) =>
+    request<{ subcontractor: unknown }>("/admin/subcontractors", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  createHome: (input: CreateHomeInput) =>
+    request<{ home: { id: string } }>("/admin/homes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  createAssignment: (
+    homeId: string,
+    input: Omit<CreateSubAssignmentInput, "homeId">,
+  ) =>
+    request<{ assignment: unknown }>(`/builder/homes/${homeId}/assignments`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  /** The picker list, not the scorecard. */
+  subcontractorList: () =>
+    request<{ subcontractors: SubcontractorRow[] }>("/builder/subcontractors"),
+
+  homes: () => request<{ homes: HomeListRow[] }>("/homes"),
+
+  // ------------------------------------------------------------- scheduling
+
+  appointments: (includePast = false) =>
+    request<{ appointments: AppointmentRow[] }>(
+      `/appointments${includePast ? "?past=true" : ""}`,
+    ),
+
+  scheduleAppointment: (input: ScheduleAppointmentInput) =>
+    request<{ appointment: unknown }>("/appointments", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  updateAppointment: (id: string, input: UpdateAppointmentInput) =>
+    request<{ appointment: unknown }>(`/appointments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
+  cancelAppointment: (id: string) =>
+    request<{ ok: boolean }>(`/appointments/${id}`, { method: "DELETE" }),
+
+  // ------------------------------------------------------------- backcharge
+
+  updateBackcharge: (id: string, input: UpdateBackchargeInput) =>
+    request<{ backcharge: unknown }>(`/builder/backcharges/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
 };

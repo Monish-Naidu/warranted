@@ -161,6 +161,40 @@ export type AiAssessment = z.infer<typeof aiAssessmentSchema>;
 // homes, warranties, subs
 // ---------------------------------------------------------------------------
 
+export const createCommunitySchema = z.object({
+  name: z.string().min(1).max(200),
+  city: z.string().min(1).max(120),
+  state: z.string().length(2),
+  postalCode: z.string().max(12).nullable().default(null),
+});
+export type CreateCommunityInput = z.infer<typeof createCommunitySchema>;
+
+/**
+ * Elevation is separate from name on purpose. Two elevations of one plan can
+ * differ in the details that fail, so collapsing them would blunt pattern
+ * detection at exactly the point it earns its keep.
+ */
+export const createPlanSchema = z.object({
+  name: z.string().min(1).max(120),
+  elevation: z.string().max(40).nullable().default(null),
+  squareFeet: z.number().int().min(100).max(30000).nullable().default(null),
+});
+export type CreatePlanInput = z.infer<typeof createPlanSchema>;
+
+export const createSubcontractorSchema = z.object({
+  companyName: z.string().min(1).max(200),
+  primaryTrade: tradeSchema,
+  contactName: z.string().max(120).nullable().default(null),
+  email: z.string().email().max(200).nullable().default(null),
+  phone: z.string().max(32).nullable().default(null),
+  /** Lapsed insurance turns a backcharge into a write-off, so it is tracked. */
+  insuranceExpiresOn: isoDateSchema.nullable().default(null),
+  /** Their contract's warranty term, which starts at *their* completion. */
+  defaultWarrantyMonths: z.number().int().min(0).max(240).default(12),
+  active: z.boolean().default(true),
+});
+export type CreateSubcontractorInput = z.infer<typeof createSubcontractorSchema>;
+
 export const createHomeSchema = z.object({
   communityId: z.string().uuid(),
   planId: z.string().uuid().nullable().default(null),
@@ -207,6 +241,35 @@ export const scheduleAppointmentSchema = z.object({
   notes: z.string().max(1000).nullable().default(null),
 });
 export type ScheduleAppointmentInput = z.infer<typeof scheduleAppointmentSchema>;
+
+export const updateAppointmentSchema = z
+  .object({
+    scheduledFor: z.string().datetime(),
+    windowMinutes: z.number().int().min(30).max(600),
+    subcontractorId: z.string().uuid().nullable(),
+    /** The coordinator proposes a slot; only the homeowner confirms it. */
+    homeownerConfirmed: z.boolean(),
+    completed: z.boolean(),
+    notes: z.string().max(1000).nullable(),
+  })
+  .partial();
+export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
+
+/**
+ * Moving a backcharge along its lifecycle.
+ *
+ * `recoverable` is the entry state computed at determination time. Everything
+ * after it is a human recording what happened: it was billed, the sub is
+ * arguing, the money arrived, or it was given up on. Without these, the
+ * "still recoverable" figure on the scorecard can only ever grow, and a
+ * worklist that never shrinks stops being read.
+ */
+export const updateBackchargeSchema = z.object({
+  status: z.enum(["recoverable", "issued", "disputed", "collected", "written_off"]),
+  amountCents: z.number().int().min(0).nullable().optional(),
+  note: z.string().max(1000).nullable().default(null),
+});
+export type UpdateBackchargeInput = z.infer<typeof updateBackchargeSchema>;
 
 // ---------------------------------------------------------------------------
 // generic API envelope

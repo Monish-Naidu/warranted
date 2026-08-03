@@ -13,6 +13,8 @@ import { logger } from "hono/logger";
 import { ZodError } from "zod";
 import { aiEnabled, env } from "./env.js";
 import { pool } from "./db/index.js";
+import { adminRoutes } from "./routes/admin.js";
+import { appointmentRoutes } from "./routes/appointments.js";
 import { authRoutes } from "./routes/auth.js";
 import { builderRoutes } from "./routes/builder.js";
 import { claimRoutes } from "./routes/claims.js";
@@ -76,6 +78,8 @@ app.route("/api/auth", authRoutes);
 app.route("/api/homes", homeRoutes);
 app.route("/api/claims", claimRoutes);
 app.route("/api/builder", builderRoutes);
+app.route("/api/admin", adminRoutes);
+app.route("/api/appointments", appointmentRoutes);
 
 app.onError((error, c) => {
   if (error instanceof ZodError) {

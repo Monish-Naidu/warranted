@@ -12,10 +12,12 @@ import { api, getToken, setToken } from "./api";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import {
   IconAlert,
+  IconCalendar,
   IconClipboard,
   IconGauge,
   IconGrid,
   IconSearch,
+  IconSettings,
   IconSignOut,
   IconUsers,
 } from "./components/Icon";
@@ -27,6 +29,8 @@ import { ExposurePage } from "./pages/Exposure";
 import { GapsPage } from "./pages/Gaps";
 import { LoginPage } from "./pages/Login";
 import { PatternsPage } from "./pages/Patterns";
+import { SchedulePage } from "./pages/Schedule";
+import { SetupPage } from "./pages/Setup";
 import { ScorecardPage } from "./pages/Scorecard";
 
 export function App() {
@@ -62,9 +66,13 @@ const NAV = [
   { to: "/exposure", label: "Exposure", Icon: IconGauge },
   { to: "/gaps", label: "Missing dates", Icon: IconAlert },
   { to: "/claims", label: "Claims", Icon: IconClipboard },
+  { to: "/schedule", label: "Schedule", Icon: IconCalendar },
   { to: "/subcontractors", label: "Subcontractors", Icon: IconUsers },
   { to: "/patterns", label: "Plan patterns", Icon: IconGrid },
 ];
+
+/** Setup is deliberately below the daily work, not above it. */
+const SECONDARY_NAV = [{ to: "/setup", label: "Setup", Icon: IconSettings }];
 
 function Shell({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
@@ -119,6 +127,16 @@ function Shell({ user }: { user: SessionUser }) {
           ))}
         </div>
 
+        <div className="nav-group">
+          <div className="nav-label">Configure</div>
+          {SECONDARY_NAV.map(({ to, label, Icon }) => (
+            <NavLink key={to} to={to} className="nav-link">
+              <Icon size={16} />
+              {label}
+            </NavLink>
+          ))}
+        </div>
+
         <div className="sidebar-foot">
           <div className="user-chip">
             <span className="avatar" aria-hidden>
@@ -163,6 +181,8 @@ function Shell({ user }: { user: SessionUser }) {
             <Route path="/gaps" element={<GapsPage />} />
             <Route path="/claims" element={<ClaimsPage />} />
             <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/setup" element={<SetupPage />} />
             <Route path="/subcontractors" element={<ScorecardPage />} />
             <Route path="/patterns" element={<PatternsPage />} />
             <Route path="*" element={<Navigate to="/exposure" replace />} />

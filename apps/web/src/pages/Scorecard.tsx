@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type SubBackcharge, type SubScorecardRow } from "../api";
@@ -349,7 +349,44 @@ function ContactBlock({
   );
 }
 
+/**
+ * What a backcharge can become from where it is.
+ *
+ * `expired` and `no_sub_assigned` have no moves out except writing them off.
+ * They are findings the rules engine produced from dates, not opinions, so a
+ * coordinator does not get to argue with them, only to record giving up.
+ */
+const NEXT_STATUS: Record<string, Array<{ to: string; label: string; primary?: boolean }>> = {
+  recoverable: [
+    { to: "issued", label: "Mark billed", primary: true },
+    { to: "written_off", label: "Write off" },
+  ],
+  issued: [
+    { to: "collected", label: "Mark collected", primary: true },
+    { to: "disputed", label: "Sub is disputing" },
+    { to: "written_off", label: "Write off" },
+  ],
+  disputed: [
+    { to: "collected", label: "Resolved, collected", primary: true },
+    { to: "written_off", label: "Write off" },
+  ],
+  collected: [],
+  expired: [{ to: "written_off", label: "Write off" }],
+  no_sub_assigned: [{ to: "written_off", label: "Write off" }],
+  written_off: [],
+};
+
 function ChargeRow({ charge }: { charge: SubBackcharge }) {
+  const queryClient = useQueryClient();
+
+  const move = useMutation({
+    mutationFn: (to: string) =>
+      api.updateBackcharge(charge.id, { status: to as never, note: null }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["scorecard"] }),
+  });
+
+  const moves = NEXT_STATUS[charge.status] ?? [];
+
   return (
     <div className="charge">
       <div className="charge-head">
@@ -368,7 +405,32 @@ function ChargeRow({ charge }: { charge: SubBackcharge }) {
           {charge.amountCents !== null ? usd(charge.amountCents) : "–"}
         </span>
       </div>
+
       <p className="charge-rationale">{charge.rationale}</p>
+
+      {moves.length > 0 && (
+        <div className="row" style={{ marginTop: "var(--space-2)" }}>
+          {moves.map((m) => (
+            <button
+              key={m.to}
+              type="button"
+              className={`btn sm ${m.primary ? "primary" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                move.mutate(m.to);
+              }}
+              disabled={move.isPending}
+            >
+              {m.label}
+            </button>
+          ))}
+          {move.isError && (
+            <span className="field-hint" style={{ color: "var(--critical)" }}>
+              {(move.error as Error).message}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

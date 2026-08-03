@@ -1,5 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
-import { createSubAssignmentSchema } from "@warranted/shared";
+import {
+  createSubAssignmentSchema,
+  updateBackchargeSchema,
+} from "@warranted/shared";
 import {
   analyzeExposure,
   exposureAlerts,
@@ -14,6 +17,7 @@ import { Hono } from "hono";
 import { db } from "../db/index.js";
 import {
   backcharges,
+  claimEvents,
   claims,
   communities,
   determinations,
@@ -267,6 +271,73 @@ builderRoutes.patch(
       .returning();
 
     return c.json({ assignment });
+  },
+);
+
+/**
+ * Move a backcharge along its lifecycle.
+ *
+ * `recoverable` is set automatically at determination time. Everything after
+ * it is a person recording what happened: it was invoiced, the sub is arguing,
+ * the money arrived, or it was given up on.
+ *
+ * Without this the "still recoverable" figure could only ever grow, because
+ * nothing could take an item off it. A worklist that never shrinks stops being
+ * read, which would waste the one number on the scorecard anybody can act on.
+ *
+ * `expired` and `no_sub_assigned` are deliberately not settable. Those are
+ * findings of fact produced by the rules engine from dates, not opinions a
+ * coordinator gets to record. To stop owing a claim, write it off explicitly.
+ */
+builderRoutes.patch(
+  "/backcharges/:id",
+  zValidator("json", updateBackchargeSchema),
+  async (c) => {
+    const builderId = builderIdOf(c);
+    const user = c.get("user");
+    const backchargeId = c.req.param("id");
+    const input = c.req.valid("json");
+
+    const [existing] = await db
+      .select({ id: backcharges.id, claimId: backcharges.claimId, status: backcharges.status })
+      .from(backcharges)
+      .innerJoin(claims, eq(backcharges.claimId, claims.id))
+      .where(and(eq(backcharges.id, backchargeId), eq(claims.builderId, builderId)))
+      .limit(1);
+
+    if (!existing) {
+      return c.json(
+        { error: { code: "not_found", message: "No such backcharge." } },
+        404,
+      );
+    }
+
+    const now = new Date();
+    const [backcharge] = await db
+      .update(backcharges)
+      .set({
+        status: input.status,
+        ...(input.amountCents !== undefined ? { amountCents: input.amountCents } : {}),
+        // Stamped once, when it first happens, so the ageing of an unpaid
+        // invoice stays readable.
+        ...(input.status === "issued" ? { issuedAt: now } : {}),
+        ...(input.status === "collected" ? { collectedAt: now } : {}),
+        updatedAt: now,
+      })
+      .where(eq(backcharges.id, backchargeId))
+      .returning();
+
+    await db.insert(claimEvents).values({
+      claimId: existing.claimId,
+      actorUserId: user.id,
+      kind: "note",
+      note:
+        `Backcharge moved from ${existing.status.replace(/_/g, " ")} to ` +
+        `${input.status.replace(/_/g, " ")}.` +
+        (input.note ? ` ${input.note}` : ""),
+    });
+
+    return c.json({ backcharge });
   },
 );
 
