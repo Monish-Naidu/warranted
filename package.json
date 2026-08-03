@@ -20,7 +20,8 @@
     "db:reset": "pnpm --filter @warranted/api db:reset",
     "db:studio": "pnpm --filter @warranted/api db:studio",
     "setup": "pnpm install && pnpm db:migrate && pnpm db:seed",
-    "db:local": "pnpm --filter @warranted/api db:local"
+    "db:local": "pnpm --filter @warranted/api db:local",
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

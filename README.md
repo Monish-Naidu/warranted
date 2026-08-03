@@ -125,31 +125,75 @@ and API, so a claim shape can't drift between the three surfaces.
 
 ---
 
-## Setup
+## Running it locally
 
-Requires Node 22+, pnpm 11+, and Postgres 17.
+Requires Node 22+ and pnpm 11+. Nothing else — the database comes with the repo.
 
 ```bash
-# Postgres (macOS)
-brew install postgresql@17
-brew services start postgresql@17
-createdb warranted
-
-# App
 pnpm install
-cp apps/api/.env.example apps/api/.env   # then add your ANTHROPIC_API_KEY
+cp apps/api/.env.example apps/api/.env
+```
+
+Open `apps/api/.env` and set `JWT_SECRET` to any long random string
+(`openssl rand -base64 48`). `ANTHROPIC_API_KEY` is optional — without it
+claims still file and queue, they just arrive untriaged.
+
+Then, in **two terminals**:
+
+```bash
+# terminal 1 — Postgres. Leave it running.
+pnpm db:local
+
+# terminal 2
 pnpm db:migrate
 pnpm db:seed
+pnpm dev
 ```
 
-Run it:
+| Surface | Where |
+| --- | --- |
+| Builder portal | <http://localhost:5173> |
+| API | <http://localhost:3001> (`/health` to check) |
+| Postgres | `localhost:5432` |
+
+`pnpm db:seed` prints the demo logins. Start with the coordinator account and
+open **Exposure** — Lot 42 is a spec home whose subcontractor clocks have
+already lapsed, which is the whole thesis in one screen.
+
+### The mobile app
 
 ```bash
-pnpm dev          # API on :3001, builder portal on :5173
-pnpm dev:mobile   # Expo — press i for iOS simulator, or scan for a device
+pnpm dev:mobile   # then press `i` for the iOS simulator
 ```
 
-Seeded logins are printed by `pnpm db:seed`.
+For a physical device, install **Expo Go** and scan the QR code — the app
+resolves the API host from Expo's dev server, so it finds your machine on the
+same network without configuration. A local Android *emulator* additionally
+needs Android Studio; Expo Go on a real Android phone does not.
+
+### About the database
+
+`pnpm db:local` runs real Postgres from binaries bundled as a dev dependency,
+against `apps/api/.postgres`. It is genuine Postgres — same SQL, same driver,
+same migrations — and it exists so a fresh clone runs with nothing installed.
+
+To use a Homebrew or hosted server instead, skip `db:local` entirely and point
+`DATABASE_URL` at it. Nothing else in the app changes.
+
+```bash
+brew install postgresql@17 && brew services start postgresql@17
+createdb warranted
+# DATABASE_URL=postgresql://localhost:5432/warranted
+```
+
+Other commands:
+
+```bash
+pnpm test        # rules-engine tests — the clock arithmetic
+pnpm typecheck   # all packages
+pnpm db:reset    # drop, re-migrate; follow with db:seed
+pnpm db:studio   # browse the data
+```
 
 ---
 
