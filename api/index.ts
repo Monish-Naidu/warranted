@@ -14,7 +14,16 @@
  * The Node runtime (not Edge) is required: `pg` needs raw TCP.
  */
 
-import { handle } from "hono/vercel";
+/*
+ * `@hono/node-server/vercel`, not `hono/vercel`. The latter is for the
+ * Web-standard (Edge) runtime and expects a `Request`; this function runs on
+ * the Node runtime, which hands the handler Node's `req`/`res`. Using the
+ * wrong one fails at request time, not build time, with
+ * `this.raw.headers.get is not a function`.
+ *
+ * The Node runtime is not optional here — `pg` needs raw TCP.
+ */
+import { handle } from "@hono/node-server/vercel";
 import { app } from "../apps/api/dist/app.bundle.cjs";
 
 export const config = {
