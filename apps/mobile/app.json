@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Warranted",
+    "slug": "warranted",
+    "scheme": "warranted",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.warranted.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Warranted uses the camera so you can photograph problems in your home and file a warranty claim.",
+        "NSPhotoLibraryUsageDescription": "Warranted needs access to your photos so you can attach existing pictures of a problem to a claim.",
+        "NSLocationWhenInUseUsageDescription": "Warranted records where a photo was taken so your builder can verify it came from your home. This prevents disputes about whether a claim is genuine."
+      }
+    },
+    "android": {
+      "package": "com.warranted.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1116",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-image-picker",
+      "expo-location"
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:3001"
+    }
+  }
+}

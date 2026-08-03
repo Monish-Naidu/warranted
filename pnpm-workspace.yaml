@@ -3,4 +3,6 @@ packages:
   - "packages/*"
 allowBuilds:
   # esbuild's postinstall links its platform binary; vitest needs it.
+  # Unpacks the bundled Postgres server binaries used by `pnpm db:local`.
+  '@embedded-postgres/darwin-arm64': true
   esbuild: true

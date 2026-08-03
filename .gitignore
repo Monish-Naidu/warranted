@@ -25,3 +25,4 @@ apps/mobile/android/
 
 # claude local overrides
 .claude/settings.local.json
+.postgres/

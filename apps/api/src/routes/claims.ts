@@ -1,9 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  CLAIM_STATUSES,
+  CLOSED_CLAIM_STATUSES,
   createClaimSchema,
   createDeterminationSchema,
   photoMetadataSchema,
   updateClaimStatusSchema,
+  type ClaimStatus,
 } from "@warranted/shared";
 import {
   backchargeRecoverability,
@@ -221,7 +224,12 @@ claimRoutes.post("/", zValidator("json", createClaimSchema), async (c) => {
 
 claimRoutes.get("/", async (c) => {
   const user = c.get("user");
-  const status = c.req.query("status");
+  // Validate before it reaches a Postgres enum comparison — an unrecognised
+  // string would otherwise become a runtime error from the driver.
+  const statusParam = c.req.query("status");
+  const status = CLAIM_STATUSES.includes(statusParam as ClaimStatus)
+    ? (statusParam as ClaimStatus)
+    : undefined;
 
   const scope =
     user.role === "homeowner"
@@ -237,11 +245,7 @@ claimRoutes.get("/", async (c) => {
     .from(claims)
     .innerJoin(homes, eq(claims.homeId, homes.id))
     .innerJoin(communities, eq(homes.communityId, communities.id))
-    .where(
-      status
-        ? and(scope, eq(claims.status, status as "submitted"))
-        : scope,
-    )
+    .where(status ? and(scope, eq(claims.status, status)) : scope)
     .orderBy(desc(claims.createdAt))
     .limit(200);
 
@@ -539,6 +543,23 @@ claimRoutes.post(
       .limit(1);
     if (!claim) {
       return c.json({ error: { code: "not_found", message: "No such claim." } }, 404);
+    }
+
+    // A closed claim stays closed. Reopening it would rewrite the timeline a
+    // right-to-cure defense depends on — file a new claim instead.
+    if (
+      CLOSED_CLAIM_STATUSES.includes(claim.status as never) &&
+      status !== claim.status
+    ) {
+      return c.json(
+        {
+          error: {
+            code: "claim_closed",
+            message: `This claim is ${claim.status}. Closed claims can't be reopened — file a new one that references it.`,
+          },
+        },
+        409,
+      );
     }
 
     const [updated] = await db

@@ -1,3 +1,5 @@
+import { zValidator } from "@hono/zod-validator";
+import { createSubAssignmentSchema } from "@warranted/shared";
 import {
   analyzeExposure,
   exposureAlerts,
@@ -148,6 +150,124 @@ function emptySummary() {
     lotsWithUnscheduledElevenMonth: 0,
   };
 }
+
+/**
+ * Record who did what on a lot, and when they finished.
+ *
+ * This is the write path that fixes the bus-factor problem. An assignment with
+ * no `completedAt` is a trade the builder cannot backcharge, because it cannot
+ * prove the sub's warranty window — so capturing the completion date is the
+ * single highest-value piece of data entry in the product.
+ */
+builderRoutes.post(
+  "/homes/:homeId/assignments",
+  zValidator("json", createSubAssignmentSchema.omit({ homeId: true })),
+  async (c) => {
+    const builderId = builderIdOf(c);
+    const homeId = c.req.param("homeId");
+    const input = c.req.valid("json");
+
+    const [home] = await db
+      .select({ id: homes.id })
+      .from(homes)
+      .where(and(eq(homes.id, homeId), eq(homes.builderId, builderId)))
+      .limit(1);
+    if (!home) {
+      return c.json({ error: { code: "not_found", message: "No such home." } }, 404);
+    }
+
+    // Scope the subcontractor to this builder too, or one tenant could attach
+    // another's subs to its lots by guessing an id.
+    const [sub] = await db
+      .select({ id: subcontractors.id, months: subcontractors.defaultWarrantyMonths })
+      .from(subcontractors)
+      .where(
+        and(
+          eq(subcontractors.id, input.subcontractorId),
+          eq(subcontractors.builderId, builderId),
+        ),
+      )
+      .limit(1);
+    if (!sub) {
+      return c.json(
+        { error: { code: "not_found", message: "No such subcontractor." } },
+        404,
+      );
+    }
+
+    const [assignment] = await db
+      .insert(subAssignments)
+      .values({
+        homeId,
+        subcontractorId: input.subcontractorId,
+        trade: input.trade,
+        scopeDescription: input.scopeDescription,
+        completedAt: input.completedAt,
+        subWarrantyStart: input.subWarrantyStart,
+        subWarrantyMonths: input.subWarrantyMonths || sub.months,
+        contractReference: input.contractReference,
+      })
+      .returning();
+
+    return c.json({ assignment }, 201);
+  },
+);
+
+const updateAssignmentSchema = createSubAssignmentSchema
+  .pick({
+    completedAt: true,
+    subWarrantyStart: true,
+    subWarrantyMonths: true,
+    scopeDescription: true,
+    contractReference: true,
+  })
+  .partial();
+
+/** Backfill a missing completion date — the fix for an undocumented trade. */
+builderRoutes.patch(
+  "/assignments/:assignmentId",
+  zValidator("json", updateAssignmentSchema),
+  async (c) => {
+    const builderId = builderIdOf(c);
+    const assignmentId = c.req.param("assignmentId");
+    const input = c.req.valid("json");
+
+    const [existing] = await db
+      .select({ id: subAssignments.id })
+      .from(subAssignments)
+      .innerJoin(homes, eq(subAssignments.homeId, homes.id))
+      .where(and(eq(subAssignments.id, assignmentId), eq(homes.builderId, builderId)))
+      .limit(1);
+    if (!existing) {
+      return c.json(
+        { error: { code: "not_found", message: "No such assignment." } },
+        404,
+      );
+    }
+
+    const [assignment] = await db
+      .update(subAssignments)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(subAssignments.id, assignmentId))
+      .returning();
+
+    return c.json({ assignment });
+  },
+);
+
+/** Subcontractors available to assign, for the picker. */
+builderRoutes.get("/subcontractors", async (c) => {
+  const rows = await db
+    .select()
+    .from(subcontractors)
+    .where(
+      and(
+        eq(subcontractors.builderId, builderIdOf(c)),
+        eq(subcontractors.active, true),
+      ),
+    );
+  return c.json({ subcontractors: rows });
+});
 
 /**
  * Subcontractor scorecard — claim rate, warranty spend, and recovery rate.

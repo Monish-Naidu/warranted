@@ -1,0 +1,592 @@
+:root {
+  --bg: #0e1116;
+  --surface: #161b22;
+  --surface-2: #1c232c;
+  --border: #2a323d;
+  --text: #e6edf3;
+  --text-dim: #8b98a5;
+  --text-faint: #5c6773;
+
+  --accent: #f0883e;
+  --accent-dim: #8a4d1f;
+  --critical: #f85149;
+  --critical-bg: #2d1315;
+  --warning: #d29922;
+  --warning-bg: #2b2413;
+  --ok: #3fb950;
+  --ok-bg: #12261a;
+  --info: #58a6ff;
+
+  --radius: 8px;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  padding: 4px 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-mark {
+  width: 18px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 4px 0 -1px var(--accent-dim);
+}
+
+.nav-link {
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-weight: 500;
+  transition: background 120ms, color 120ms;
+}
+
+.nav-link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.nav-link.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.main {
+  padding: 28px 32px 64px;
+  max-width: 1180px;
+}
+
+.page-head {
+  margin-bottom: 24px;
+}
+
+.page-head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.page-head p {
+  margin: 0;
+  color: var(--text-dim);
+  max-width: 68ch;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.stat.is-critical .stat-value {
+  color: var(--critical);
+}
+.stat.is-warning .stat-value {
+  color: var(--warning);
+}
+
+/* ---------------------------------------------------------------- alerts */
+
+.alert {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+.alert.critical {
+  border-color: color-mix(in srgb, var(--critical) 40%, var(--border));
+  background: var(--critical-bg);
+}
+
+.alert.warning {
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: var(--warning-bg);
+}
+
+.alert-bar {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--text-faint);
+  flex: none;
+}
+.alert.critical .alert-bar {
+  background: var(--critical);
+}
+.alert.warning .alert-bar {
+  background: var(--warning);
+}
+
+.alert-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------------- badges */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.badge.critical {
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 45%, transparent);
+  background: var(--critical-bg);
+}
+.badge.warning {
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  background: var(--warning-bg);
+}
+.badge.ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: var(--ok-bg);
+}
+.badge.info {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 45%, transparent);
+}
+.badge.mono {
+  font-family: var(--mono);
+}
+
+/* ---------------------------------------------------------------- tables */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr.clickable:hover {
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ------------------------------------------------------------ clock bars */
+
+/*
+ * The two-clock visualization. The builder's window is the full track; the
+ * sub's covered portion is the filled segment; the exposed tail is what the
+ * builder carries alone — the thing this product exists to show.
+ */
+.clock {
+  display: grid;
+  grid-template-columns: 130px 1fr 96px;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+}
+
+.clock-trade {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-transform: capitalize;
+}
+
+.clock-track {
+  position: relative;
+  height: 20px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.clock-covered {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--ok) 35%, transparent);
+  border-right: 1px solid var(--ok);
+}
+
+.clock-exposed {
+  position: absolute;
+  inset: 0 0 0 auto;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--critical) 30%, transparent),
+    color-mix(in srgb, var(--critical) 30%, transparent) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.clock-unknown {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--warning) 28%, transparent),
+    color-mix(in srgb, var(--warning) 28%, transparent) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.clock-days {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-dim);
+}
+
+.clock-days.exposed {
+  color: var(--critical);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ misc */
+
+.btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 550;
+  font-size: 13px;
+  transition: background 120ms, border-color 120ms;
+}
+
+.btn:hover:not(:disabled) {
+  background: #232c37;
+  border-color: #384252;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1005;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #ff9d55;
+  border-color: #ff9d55;
+}
+
+.btn.danger {
+  color: var(--critical);
+  border-color: color-mix(in srgb, var(--critical) 40%, var(--border));
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+  font-weight: 550;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.muted {
+  color: var(--text-dim);
+}
+.faint {
+  color: var(--text-faint);
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+}
+
+/* ------------------------------------------------------------------ auth */
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.error-note {
+  background: var(--critical-bg);
+  border: 1px solid color-mix(in srgb, var(--critical) 40%, transparent);
+  color: var(--critical);
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.hint {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------- ai card */
+
+.ai-card {
+  border: 1px solid color-mix(in srgb, var(--info) 30%, var(--border));
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.ai-head {
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--info) 8%, var(--surface));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-body {
+  padding: 16px;
+}
+
+.citation {
+  border-left: 2px solid var(--border);
+  padding: 6px 0 6px 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.citation q {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.photo-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.photo-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.timeline-item:last-child {
+  border-bottom: none;
+}
